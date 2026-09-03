@@ -12,6 +12,7 @@ import com.example.crowdtransportfeedback.ui.theme.CrowdTransportFeedbackTheme
 import com.example.crowdtransportfeedback.ui.viewmodel.FeedbackViewModel
 import com.example.crowdtransportfeedback.ui.viewmodel.FeedbackViewModelFactory
 import com.example.crowdtransportfeedback.ui.navigation.AppNav
+import com.example.crowdtransportfeedback.sync.FeedbackSyncScheduler
 
 class MainActivity : ComponentActivity() {
 
@@ -21,7 +22,12 @@ class MainActivity : ComponentActivity() {
 
         // build dependencies
         val db = DatabaseProvider.getDatabase(this)
-        val repo = FeedbackRepository(db.feedbackDao(), RetrofitClient.api)
+        val syncScheduler = FeedbackSyncScheduler(this)
+        val repo = FeedbackRepository(
+            db.feedbackDao(),
+            RetrofitClient.api,
+            syncScheduler::scheduleOneTime
+        )
         val factory = FeedbackViewModelFactory(repo)
         val vm: FeedbackViewModel = ViewModelProvider(this, factory)[FeedbackViewModel::class.java]
         val isAdmin = true

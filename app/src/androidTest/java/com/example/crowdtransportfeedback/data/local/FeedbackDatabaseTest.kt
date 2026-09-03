@@ -66,6 +66,18 @@ class FeedbackDatabaseTest {
         assertEquals(SyncState.PENDING_CREATE, stored?.syncState)
     }
 
+    @Test
+    fun reconciliationPreservesAndNormalListHidesPendingDelete() = runBlocking {
+        val localId = database.feedbackDao().insert(
+            feedback("delete-tombstone", syncState = SyncState.PENDING_DELETE)
+        )
+
+        database.feedbackDao().reconcileRemote(emptyList())
+
+        assertEquals(SyncState.PENDING_DELETE, database.feedbackDao().getByLocalIdOnce(localId)?.syncState)
+        assertFalse(database.feedbackDao().getAll().first().any { it.localId == localId })
+    }
+
     private fun feedback(
         feedbackId: String,
         comment: String = "Comment",

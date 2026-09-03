@@ -38,7 +38,7 @@ fun FeedbackListScreen(
             Spacer(modifier = Modifier.width(12.dp))
 
             OutlinedButton(onClick = { vm.sync() }) {
-                Text("Sync from server")
+                Text("Sync now")
             }
         }
 

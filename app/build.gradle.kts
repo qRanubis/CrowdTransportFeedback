@@ -53,6 +53,9 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     kapt(libs.androidx.room.compiler)
 
+    // Durable, connectivity-constrained synchronization
+    implementation(libs.androidx.work.runtime.ktx)
+
     //Navigation
     implementation(libs.androidx.navigation.compose)
 

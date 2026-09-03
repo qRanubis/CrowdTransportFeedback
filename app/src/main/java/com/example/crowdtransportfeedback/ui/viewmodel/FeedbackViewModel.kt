@@ -51,9 +51,9 @@ class FeedbackViewModel(
     fun sync() {
         viewModelScope.launch {
             try {
-                repo.syncFromRemoteFull()
-            } catch (e: Exception) {
-                e.printStackTrace() // vezi eroarea in Logcat
+                repo.synchronize()
+            } catch (error: Exception) {
+                error.printStackTrace()
             }
         }
     }

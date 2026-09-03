@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface FeedbackDao {
 
-    @Query("SELECT * FROM feedback ORDER BY createdAt DESC")
+    @Query("SELECT * FROM feedback WHERE syncState != 'PENDING_DELETE' ORDER BY createdAt DESC")
     fun getAll(): Flow<List<FeedbackEntity>>
 
     @Query("SELECT * FROM feedback WHERE localId = :localId")
@@ -21,6 +21,9 @@ interface FeedbackDao {
 
     @Query("SELECT * FROM feedback WHERE syncState != 'SYNCED' ORDER BY createdAt ASC")
     suspend fun getPending(): List<FeedbackEntity>
+
+    @Query("SELECT * FROM feedback WHERE syncState = :syncState ORDER BY createdAt ASC")
+    suspend fun getPendingByState(syncState: SyncState): List<FeedbackEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(item: FeedbackEntity): Long
