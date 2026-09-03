@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import com.example.crowdtransportfeedback.ui.viewmodel.FeedbackViewModel
 import androidx.compose.foundation.clickable
 import androidx.compose.material3.OutlinedButton
+import com.example.crowdtransportfeedback.data.local.SyncState
 
 @Composable
 fun FeedbackListScreen(
@@ -51,7 +52,7 @@ fun FeedbackListScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 8.dp)
-                        .clickable { onItemClick(item.id) }
+                        .clickable { onItemClick(item.localId) }
                 ) {
                     Text(
                         text = "Score: ${item.score} | Line: ${item.line ?: "-"}",
@@ -62,7 +63,7 @@ fun FeedbackListScreen(
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
-                        text = "id=${item.id}  synced=${item.synced}",
+                        text = "Local id=${item.localId}  ${item.syncState.displayName}",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -70,4 +71,11 @@ fun FeedbackListScreen(
         }
     }
 }
+
+private val SyncState.displayName: String
+    get() = when (this) {
+        SyncState.PENDING_CREATE -> "Pending"
+        SyncState.SYNCED -> "Synchronized"
+        SyncState.PENDING_DELETE -> "Pending deletion"
+    }
 

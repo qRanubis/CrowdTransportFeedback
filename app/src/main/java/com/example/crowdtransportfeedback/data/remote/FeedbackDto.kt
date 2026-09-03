@@ -1,7 +1,7 @@
 package com.example.crowdtransportfeedback.data.remote
 
 data class FeedbackDto(
-    val id: String? = null,
+    val id: String,
     val score: Int,
     val comment: String,
     val line: String?,

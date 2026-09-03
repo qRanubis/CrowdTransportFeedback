@@ -1,12 +1,19 @@
 package com.example.crowdtransportfeedback.data.local
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
+import java.util.UUID
 
-@Entity(tableName = "feedback")
+@Entity(
+    tableName = "feedback",
+    indices = [Index(value = ["feedbackId"], unique = true)]
+)
 data class FeedbackEntity(
     @PrimaryKey(autoGenerate = true)
-    val id: Long = 0,
+    val localId: Long = 0,
+
+    val feedbackId: String = UUID.randomUUID().toString(),
 
     val score: Int,
     val comment: String,
@@ -17,5 +24,5 @@ data class FeedbackEntity(
     val line: String?,
     val createdAt: Long,
 
-    val synced: Boolean
+    val syncState: SyncState = SyncState.PENDING_CREATE
 )

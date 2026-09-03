@@ -14,7 +14,8 @@ object DatabaseProvider {
                 context.applicationContext,
                 AppDatabase::class.java,
                 "crowd_feedback_db"
-            ).build()
+            ).addMigrations(MIGRATION_1_2)
+                .build()
         }
         return db!!
     }

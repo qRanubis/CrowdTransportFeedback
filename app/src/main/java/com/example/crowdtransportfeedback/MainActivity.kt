@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.ViewModelProvider
 import com.example.crowdtransportfeedback.data.local.DatabaseProvider
 import com.example.crowdtransportfeedback.data.repository.FeedbackRepository
+import com.example.crowdtransportfeedback.data.remote.RetrofitClient
 import com.example.crowdtransportfeedback.ui.theme.CrowdTransportFeedbackTheme
 import com.example.crowdtransportfeedback.ui.viewmodel.FeedbackViewModel
 import com.example.crowdtransportfeedback.ui.viewmodel.FeedbackViewModelFactory
@@ -20,7 +21,7 @@ class MainActivity : ComponentActivity() {
 
         // build dependencies
         val db = DatabaseProvider.getDatabase(this)
-        val repo = FeedbackRepository(db.feedbackDao())
+        val repo = FeedbackRepository(db.feedbackDao(), RetrofitClient.api)
         val factory = FeedbackViewModelFactory(repo)
         val vm: FeedbackViewModel = ViewModelProvider(this, factory)[FeedbackViewModel::class.java]
         val isAdmin = true

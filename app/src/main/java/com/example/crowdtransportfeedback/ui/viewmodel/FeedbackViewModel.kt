@@ -3,6 +3,7 @@ package com.example.crowdtransportfeedback.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.crowdtransportfeedback.data.local.FeedbackEntity
+import com.example.crowdtransportfeedback.data.local.SyncState
 import com.example.crowdtransportfeedback.data.repository.FeedbackRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -31,7 +32,7 @@ class FeedbackViewModel(
                 longitude = lon,
                 line = line,
                 createdAt = System.currentTimeMillis(),
-                synced = false
+                syncState = SyncState.PENDING_CREATE
             )
             repo.addFeedbackAndUpload(item)
         }
