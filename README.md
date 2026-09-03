@@ -108,7 +108,7 @@ The app uses a simple REST API for synchronization.
 mkdir dir
 cd dir
 npm install
-npx json-server --watch db.json --port 3000
+npx json-server@0.17.4 --watch db.json --host 0.0.0.0 --port 3000
 ```
 
 ---
@@ -116,11 +116,16 @@ npx json-server --watch db.json --port 3000
 
 ### Emulator Networking Note
 
-Android Emulator cannot access localhost.
+`0.0.0.0` is only the server bind address; do not open it in a browser.
 
-The app is configured to use:
+From the Windows host, open:
 
-`http://10.0.2.2:3000`
+`http://localhost:3000/feedback`
+
+Android Emulator cannot access the Windows host through `localhost`. From the
+Android Emulator, the app or browser uses:
+
+`http://10.0.2.2:3000/feedback`
 
 This maps to your local machine.
 
