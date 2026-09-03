@@ -78,7 +78,7 @@ You can fully test the app **without any server**:
 
 - Add feedback
 - Data is saved locally in Room
-- `synced = false`
+- `syncState = PENDING_CREATE`
 - App continues to work normally
 
 This demonstrates **offline-first behavior**.
@@ -130,7 +130,7 @@ This maps to your local machine.
 
 - Feedback is saved locally first
 - App attempts to `POST` data to the server
-- If successful: `synced = true`
+- If successful: `syncState = SYNCED`
 - If server is unavailable: remains local
 
 #### Downlaod (Server to Local)
@@ -147,7 +147,7 @@ You can fully test the app without any server:
 
 - Add feedback
 - Data is saved locally in Room
-- `synced = false`
+- `syncState = PENDING_CREATE`
 - App continues to work normally
 
 ---

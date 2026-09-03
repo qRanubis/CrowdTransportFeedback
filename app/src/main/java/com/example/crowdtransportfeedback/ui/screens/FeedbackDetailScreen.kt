@@ -6,6 +6,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.crowdtransportfeedback.ui.viewmodel.FeedbackViewModel
+import com.example.crowdtransportfeedback.data.local.SyncState
 
 @Composable
 fun FeedbackDetailScreen(
@@ -39,8 +40,8 @@ fun FeedbackDetailScreen(
             Text("Line: ${current.line ?: "-"}")
             Text("Comment: ${current.comment}")
             Text("lat=${current.latitude ?: "-"}  lon=${current.longitude ?: "-"}")
-            Text("Synced: ${current.synced}")
-            Text("Id: ${current.id}")
+            Text("Status: ${current.syncState.displayName}")
+            Text("Local id: ${current.localId}")
         }
 
 
@@ -58,3 +59,10 @@ fun FeedbackDetailScreen(
 
     }
 }
+
+private val SyncState.displayName: String
+    get() = when (this) {
+        SyncState.PENDING_CREATE -> "Pending"
+        SyncState.SYNCED -> "Synchronized"
+        SyncState.PENDING_DELETE -> "Pending deletion"
+    }

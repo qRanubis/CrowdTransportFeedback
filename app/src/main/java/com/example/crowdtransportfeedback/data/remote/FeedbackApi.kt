@@ -12,10 +12,10 @@ interface FeedbackApi {
     suspend fun getAll(): List<FeedbackDto>
 
     @POST("feedback")
-    suspend fun add(@Body item: FeedbackDto): FeedbackDto   // ✅
+    suspend fun add(@Body item: FeedbackDto): FeedbackDto
 
     @DELETE("feedback/{id}")
-    suspend fun delete(@Path("id") id: Long)
+    suspend fun delete(@Path("id") id: String)
 
 
 }

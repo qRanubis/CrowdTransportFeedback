@@ -4,8 +4,8 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
-import androidx.room.Update
 
 @Dao
 interface FeedbackDao {
@@ -13,8 +13,14 @@ interface FeedbackDao {
     @Query("SELECT * FROM feedback ORDER BY createdAt DESC")
     fun getAll(): Flow<List<FeedbackEntity>>
 
-    @Query("SELECT * FROM feedback WHERE id = :id")
-    fun getById(id: Long): Flow<FeedbackEntity?>
+    @Query("SELECT * FROM feedback WHERE localId = :localId")
+    fun getByLocalId(localId: Long): Flow<FeedbackEntity?>
+
+    @Query("SELECT * FROM feedback WHERE localId = :localId")
+    suspend fun getByLocalIdOnce(localId: Long): FeedbackEntity?
+
+    @Query("SELECT * FROM feedback WHERE syncState != 'SYNCED' ORDER BY createdAt ASC")
+    suspend fun getPending(): List<FeedbackEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(item: FeedbackEntity): Long
@@ -22,17 +28,67 @@ interface FeedbackDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(items: List<FeedbackEntity>)
 
-    @Query("UPDATE feedback SET synced = :synced WHERE id = :id")
-    suspend fun setSynced(id: Long, synced: Boolean)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertRemote(item: FeedbackEntity): Long
 
-    @Query("DELETE FROM feedback WHERE synced = 1")
+    @Query("UPDATE feedback SET syncState = :syncState WHERE localId = :localId")
+    suspend fun setSyncState(localId: Long, syncState: SyncState)
+
+    @Query(
+        """
+        UPDATE feedback SET
+            score = :score,
+            comment = :comment,
+            latitude = :latitude,
+            longitude = :longitude,
+            line = :line,
+            createdAt = :createdAt
+        WHERE feedbackId = :feedbackId AND syncState = 'SYNCED'
+        """
+    )
+    suspend fun updateSyncedFromRemote(
+        feedbackId: String,
+        score: Int,
+        comment: String,
+        latitude: Double?,
+        longitude: Double?,
+        line: String?,
+        createdAt: Long
+    ): Int
+
+    @Query("DELETE FROM feedback WHERE syncState = 'SYNCED'")
     suspend fun deleteAllSynced()
     @Query("DELETE FROM feedback")
     suspend fun deleteAll()
-    @Query("DELETE FROM feedback WHERE id = :id")
-    suspend fun deleteById(id: Long)
+    @Query("DELETE FROM feedback WHERE localId = :localId")
+    suspend fun deleteByLocalId(localId: Long)
 
-    @Query("DELETE FROM feedback WHERE synced = 1 AND id NOT IN (:serverIds)")
-    suspend fun deleteSyncedNotInServer(serverIds: List<Long>)
+    @Query("DELETE FROM feedback WHERE syncState = 'SYNCED' AND feedbackId NOT IN (:serverIds)")
+    suspend fun deleteSyncedNotInServer(serverIds: List<String>)
+
+    @Transaction
+    suspend fun reconcileRemote(items: List<FeedbackEntity>) {
+        items.forEach { item ->
+            val updated = updateSyncedFromRemote(
+                feedbackId = item.feedbackId,
+                score = item.score,
+                comment = item.comment,
+                latitude = item.latitude,
+                longitude = item.longitude,
+                line = item.line,
+                createdAt = item.createdAt
+            )
+            if (updated == 0) {
+                insertRemote(item)
+            }
+        }
+
+        val serverIds = items.map { it.feedbackId }
+        if (serverIds.isEmpty()) {
+            deleteAllSynced()
+        } else {
+            deleteSyncedNotInServer(serverIds)
+        }
+    }
 
 }
