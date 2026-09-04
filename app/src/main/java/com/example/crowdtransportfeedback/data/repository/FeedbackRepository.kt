@@ -25,7 +25,11 @@ class FeedbackRepository(
 ) {
     fun getAllFeedback(): Flow<List<FeedbackEntity>> = dao.getAll()
 
-    suspend fun addFeedback(item: FeedbackEntity): Long = dao.insert(item)
+    suspend fun addFeedback(item: FeedbackEntity): Long {
+        val id = dao.insert(item.copy(syncState = SyncState.PENDING_CREATE))
+        scheduleSync()
+        return id
+    }
 
     fun getById(localId: Long) = dao.getByLocalId(localId)
 
@@ -64,10 +68,9 @@ class FeedbackRepository(
     }
 
     suspend fun deleteFeedbackAdmin(localId: Long) {
-        val item = dao.getByLocalIdOnce(localId) ?: return
+        if (dao.getByLocalIdOnce(localId) == null) return
         dao.setSyncState(localId, SyncState.PENDING_DELETE)
-        val tombstone = item.copy(localId = localId, syncState = SyncState.PENDING_DELETE)
-        if (processDelete(tombstone) != Attempt.SUCCESS) scheduleSync()
+        scheduleSync()
     }
 
     suspend fun addFeedbackAndUpload(item: FeedbackEntity): Long {

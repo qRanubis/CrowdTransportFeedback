@@ -225,3 +225,11 @@ app/
 ### Author
 
 Vitregu Valentin-Rareș - SCPD
+
+## Milestone 3: structured transport feedback
+
+New reports use four mandatory clickable 1–5 ratings: **Overall trust** (very low to very high), crowding comfort (extremely crowded to plenty of space), cleanliness (very dirty to very clean), and punctuality (very poor to very good). Every scale consistently uses 1 as negative and 5 as positive. A report also requires an explicitly selected Bus, Night bus, Tram, Trolleybus, or Metro line from the static September 2026 Bucharest catalog; normal and night buses remain separate.
+
+Room database version 3 uses a non-destructive 2 → 3 migration. Legacy rows retain their identity, rating, comment, coordinates, line, timestamp, and sync state while new structured columns remain null. Legacy json-server records with missing structured properties also deserialize as null.
+
+Location captures one current point when a report is submitted (with last-known location only as fallback). The app does not continuously track trips and does not request background location. Validation requires all structured selections and an available location; comments are optional and trimmed. Saving is accepted after the row is persisted locally, while the unchanged Milestone 2 offline synchronization uploads and retries it separately.

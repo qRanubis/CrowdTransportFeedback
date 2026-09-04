@@ -41,11 +41,15 @@ fun FeedbackDetailScreen(
             Text("Detail", style = MaterialTheme.typography.titleLarge)
             Spacer(modifier = Modifier.height(8.dp))
 
-            Text("Score: ${current.score}")
-            Text("Line: ${current.line ?: "-"}")
-            Text("Comment: ${current.comment}")
-            Text("lat=${current.latitude ?: "-"}  lon=${current.longitude ?: "-"}")
-            Text("Status: ${current.syncState.displayName}")
+            Text("Overall trust: ${current.score}/5")
+            Text("Transport type: ${current.transportType?.displayName ?: "Not available"}")
+            Text("Line: ${current.line ?: "Not available"}")
+            Text("Crowding comfort: ${current.crowdingScore?.let { "$it/5" } ?: "Not available"}")
+            Text("Cleanliness: ${current.cleanlinessScore?.let { "$it/5" } ?: "Not available"}")
+            Text("Punctuality: ${current.punctualityScore?.let { "$it/5" } ?: "Not available"}")
+            Text("Comment: ${current.comment.ifBlank { "Not available" }}")
+            Text("Latitude / longitude: ${current.latitude ?: "Not available"} / ${current.longitude ?: "Not available"}")
+            Text("Sync status: ${current.syncState.displayName}")
             Text("Local id: ${current.localId}")
         }
 

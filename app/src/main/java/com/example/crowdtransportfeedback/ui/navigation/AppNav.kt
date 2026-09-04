@@ -28,17 +28,18 @@ fun AppNav(vm: FeedbackViewModel, isAdmin: Boolean) {
         composable(Routes.LIST) {
             FeedbackListScreen(
                 vm = vm,
-                onAddClick = { navController.navigate(Routes.ADD) },
+                onAddClick = {
+                    vm.resetFeedbackForm()
+                    navController.navigate(Routes.ADD)
+                },
                 onItemClick = { id -> navController.navigate("${Routes.DETAIL}/$id") }
             )
         }
 
         composable(Routes.ADD) {
             AddFeedbackScreen(
-                onSave = { score, comment, line, lat, lon ->
-                    vm.addFeedback(score, comment, line, lat, lon)
-                    navController.popBackStack()
-                },
+                vm = vm,
+                onSaved = { navController.popBackStack() },
                 onCancel = { navController.popBackStack() }
             )
         }

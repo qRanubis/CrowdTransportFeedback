@@ -1,4 +1,5 @@
 package com.example.crowdtransportfeedback.data.remote
+import com.example.crowdtransportfeedback.domain.TransportType
 
 data class FeedbackDto(
     val id: String,
@@ -7,7 +8,11 @@ data class FeedbackDto(
     val line: String?,
     val createdAt: Long,
     val latitude: Double? = null,
-    val longitude: Double? = null
+    val longitude: Double? = null,
+    val transportType: TransportType? = null,
+    val crowdingScore: Int? = null,
+    val cleanlinessScore: Int? = null,
+    val punctualityScore: Int? = null
 )
 
 

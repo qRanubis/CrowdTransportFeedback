@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import java.util.UUID
+import com.example.crowdtransportfeedback.domain.TransportType
 
 @Entity(
     tableName = "feedback",
@@ -24,5 +25,9 @@ data class FeedbackEntity(
     val line: String?,
     val createdAt: Long,
 
-    val syncState: SyncState = SyncState.PENDING_CREATE
+    val syncState: SyncState = SyncState.PENDING_CREATE,
+    val transportType: TransportType? = null,
+    val crowdingScore: Int? = null,
+    val cleanlinessScore: Int? = null,
+    val punctualityScore: Int? = null
 )

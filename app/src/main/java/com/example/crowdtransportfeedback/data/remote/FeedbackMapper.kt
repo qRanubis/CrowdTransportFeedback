@@ -10,7 +10,11 @@ fun FeedbackEntity.toDto(): FeedbackDto = FeedbackDto(
     line = line,
     createdAt = createdAt,
     latitude = latitude,
-    longitude = longitude
+    longitude = longitude,
+    transportType = transportType,
+    crowdingScore = crowdingScore,
+    cleanlinessScore = cleanlinessScore,
+    punctualityScore = punctualityScore
 )
 
 fun FeedbackDto.toEntity(syncState: SyncState = SyncState.SYNCED): FeedbackEntity = FeedbackEntity(
@@ -21,5 +25,9 @@ fun FeedbackDto.toEntity(syncState: SyncState = SyncState.SYNCED): FeedbackEntit
     longitude = longitude,
     line = line,
     createdAt = createdAt,
-    syncState = syncState
+    syncState = syncState,
+    transportType = transportType,
+    crowdingScore = crowdingScore,
+    cleanlinessScore = cleanlinessScore,
+    punctualityScore = punctualityScore
 )
