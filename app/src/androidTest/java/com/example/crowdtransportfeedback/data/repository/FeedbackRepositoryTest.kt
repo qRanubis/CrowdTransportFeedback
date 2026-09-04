@@ -107,6 +107,7 @@ class FeedbackRepositoryTest {
         assertTrue(repository.getAllFeedback().first().isEmpty())
         assertEquals(SyncState.PENDING_DELETE, database.feedbackDao().getByLocalIdOnce(localId)?.syncState)
         assertEquals(1, scheduled)
+        assertEquals(0, api.deleteCalls)
     }
 
     @Test
@@ -116,11 +117,14 @@ class FeedbackRepositoryTest {
         api.networkAvailable = false
         repository.deleteFeedbackAdmin(localId)
 
+        assertEquals(0, api.deleteCalls)
+
         api.networkAvailable = true
         repository.synchronize()
 
         assertNull(database.feedbackDao().getByLocalIdOnce(localId))
         assertEquals(listOf("delete-retry"), api.deleted)
+        assertEquals(1, api.deleteCalls)
     }
 
     @Test
@@ -129,7 +133,13 @@ class FeedbackRepositoryTest {
 
         repository.deleteFeedbackAdmin(localId)
 
+        assertEquals(SyncState.PENDING_DELETE, database.feedbackDao().getByLocalIdOnce(localId)?.syncState)
+        assertEquals(0, api.deleteCalls)
+
+        repository.synchronize()
+
         assertNull(database.feedbackDao().getByLocalIdOnce(localId))
+        assertEquals(1, api.deleteCalls)
     }
 
     @Test
@@ -211,6 +221,7 @@ private class RecordingFeedbackApi : FeedbackApi {
     var remote: List<FeedbackDto> = emptyList()
     val added = mutableListOf<FeedbackDto>()
     val deleted = mutableListOf<String>()
+    var deleteCalls = 0
 
     override suspend fun getAll(): List<FeedbackDto> {
         requireNetwork()
@@ -237,6 +248,7 @@ private class RecordingFeedbackApi : FeedbackApi {
     }
 
     override suspend fun delete(id: String): Response<Unit> {
+        deleteCalls++
         requireNetwork()
         if (remote.none { it.id == id }) return Response.error(404, "not found".toResponseBody())
         remote = remote.filterNot { it.id == id }
