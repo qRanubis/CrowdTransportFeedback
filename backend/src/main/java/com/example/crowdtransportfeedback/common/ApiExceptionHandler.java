@@ -4,6 +4,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -15,6 +16,12 @@ public class ApiExceptionHandler {
     ResponseEntity<?> api(ApiException error) {
         return ResponseEntity.status(error.status)
             .body(Map.of("code", error.code, "message", error.getMessage()));
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    ResponseEntity<?> forbidden() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+            .body(Map.of("code", "forbidden", "message", "Operation is not permitted"));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
