@@ -21,7 +21,7 @@ fun FeedbackEntity.toDto(): FeedbackDto = FeedbackDto(
 fun FeedbackDto.toEntity(syncState: SyncState = SyncState.SYNCED): FeedbackEntity = FeedbackEntity(
     feedbackId = id,
     score = score,
-    comment = comment,
+    comment = comment.orEmpty(),
     latitude = latitude,
     longitude = longitude,
     line = line,
