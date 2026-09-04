@@ -1,205 +1,101 @@
 package com.example.crowdtransportfeedback.ui.screens
 
-
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
+import com.example.crowdtransportfeedback.domain.BucharestTransitCatalog
+import com.example.crowdtransportfeedback.domain.TransportType
+import com.example.crowdtransportfeedback.location.AndroidLocationProvider
+import com.example.crowdtransportfeedback.ui.form.FeedbackFormState
+import com.example.crowdtransportfeedback.ui.form.LocationState
+import com.example.crowdtransportfeedback.ui.viewmodel.FeedbackViewModel
 
 @Composable
-fun AddFeedbackScreen(
-    onSave: (Int, String, String, Double, Double) -> Unit,
-    onCancel: () -> Unit
-) {
+fun AddFeedbackScreen(vm: FeedbackViewModel, onSaved: () -> Unit, onCancel: () -> Unit) {
+    val state by vm.formState.collectAsState()
     val context = LocalContext.current
-    val fused = remember { LocationServices.getFusedLocationProviderClient(context) }
-
-    var scoreText by remember { mutableStateOf("4") }
-    var line by remember { mutableStateOf("41") }
-    var comment by remember { mutableStateOf("") }
-
-    var lat by remember { mutableStateOf<Double?>(null) }
-    var lon by remember { mutableStateOf<Double?>(null) }
-    var locStatus by remember { mutableStateOf("Getting location...") }
-
-    fun fetchLocation() {
-        val fineGranted = ContextCompat.checkSelfPermission(
-            context, Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        val coarseGranted = ContextCompat.checkSelfPermission(
-            context, Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        if (!(fineGranted || coarseGranted)) {
-            locStatus = "Permission required"
-            return
-        }
-
-        locStatus = "Getting location..."
-
-        fused.lastLocation
-            .addOnSuccessListener { location ->
-                if (location != null) {
-                    lat = location.latitude
-                    lon = location.longitude
-                    locStatus = "Location OK (last)"
-                } else {
-                    // fallback: ia locatie curenta
-                    locStatus = "Getting current location..."
-                    fused.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
-                        .addOnSuccessListener { loc2 ->
-                            if (loc2 != null) {
-                                lat = loc2.latitude
-                                lon = loc2.longitude
-                                locStatus = "Location OK (current)"
-                            } else {
-                                lat = null
-                                lon = null
-                                locStatus = "Location still null (check emulator settings)"
-                            }
-                        }
-                        .addOnFailureListener {
-                            lat = null
-                            lon = null
-                            locStatus = "Current location error"
-                        }
-                }
-            }
-            .addOnFailureListener {
-                lat = null
-                lon = null
-                locStatus = "Last location error"
-            }
+    val provider = remember { AndroidLocationProvider(context) }
+    fun hasPermission() = listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+        .any { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
+    fun fetch() {
+        if (!hasPermission()) { vm.setLocationState(LocationState.PermissionRequired); return }
+        vm.setLocationState(LocationState.Loading)
+        provider.getLocation { result -> vm.setLocationState(result.fold(
+            { LocationState.Available(it.latitude, it.longitude) }, { LocationState.Error })) }
     }
-
-    val permLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { result ->
-        val fine = result[Manifest.permission.ACCESS_FINE_LOCATION] == true
-        val coarse = result[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-
-        if (fine || coarse) {
-            fetchLocation()
-        } else {
-            locStatus = "Permission denied (cannot save)"
-            lat = null
-            lon = null
-        }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
+        if (grants.values.any { it }) fetch() else vm.setLocationState(LocationState.PermissionDenied)
     }
-
-    // permisune locatie
+    fun requestPermission() {
+        vm.setLocationState(LocationState.RequestingPermission)
+        launcher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+    }
     LaunchedEffect(Unit) {
-        val fineGranted = ContextCompat.checkSelfPermission(
-            context, Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        val coarseGranted = ContextCompat.checkSelfPermission(
-            context, Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        if (fineGranted || coarseGranted) {
-            fetchLocation()
-        } else {
-            locStatus = "Requesting permission..."
-            permLauncher.launch(
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                )
-            )
-        }
+        if (hasPermission()) fetch()
+        else if (state.locationState !is LocationState.PermissionDenied) requestPermission()
     }
 
-    val canSave = (lat != null && lon != null)
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
         Text("Add feedback", style = MaterialTheme.typography.titleLarge)
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Text(
-            text = "$locStatus  lat=${lat ?: "-"}  lon=${lon ?: "-"}",
-            style = MaterialTheme.typography.bodySmall
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedButton(onClick = { fetchLocation() }) {
-            Text("Retry location")
+        RatingSelector("Overall trust", "1 = Very low", "5 = Very high", state.overallTrust, vm::setOverall)
+        RatingSelector("Crowding comfort", "1 = Extremely crowded", "5 = Plenty of space", state.crowdingScore, vm::setCrowding)
+        RatingSelector("Cleanliness", "1 = Very dirty", "5 = Very clean", state.cleanlinessScore, vm::setCleanliness)
+        RatingSelector("Punctuality", "1 = Very poor", "5 = Very good", state.punctualityScore, vm::setPunctuality)
+        Selector("Transport type", state.transportType?.displayName ?: "Select transport type", TransportType.entries.map { it.displayName }) { label ->
+            vm.setTransportType(TransportType.entries.first { it.displayName == label })
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        OutlinedTextField(
-            value = scoreText,
-            onValueChange = { scoreText = it },
-            label = { Text("Score (1-5)") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedTextField(
-            value = line,
-            onValueChange = { line = it },
-            label = { Text("Line (ex: 41, M2)") },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedTextField(
-            value = comment,
-            onValueChange = { comment = it },
-            label = { Text("Comment") },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(140.dp)
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Row {
-            Button(
-                onClick = {
-                    val score = scoreText.toIntOrNull() ?: 0
-                    onSave(score, comment, line, lat!!, lon!!)
-                },
-                enabled = canSave
-            ) {
-                Text("Save")
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            OutlinedButton(onClick = { onCancel() }) {
-                Text("Cancel")
-            }
+        val type = state.transportType
+        SearchableLineSelector(state, type?.let(BucharestTransitCatalog::linesFor).orEmpty(), vm::setLine)
+        OutlinedTextField(state.comment, vm::setComment, label = { Text("Comment (optional)") }, modifier = Modifier.fillMaxWidth().height(120.dp))
+        Spacer(Modifier.height(12.dp)); Text("Location", style = MaterialTheme.typography.labelLarge)
+        Text(locationMessage(state.locationState))
+        OutlinedButton(onClick = { if (hasPermission()) fetch() else requestPermission() }, enabled = !state.isSubmitting && state.locationState !is LocationState.Loading) {
+            Text(if (hasPermission()) "Retry location" else "Allow location")
         }
-
-        if (!canSave) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Location is required to save.",
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
+        state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        Row { Button(onClick = { vm.submit(onSaved) }, enabled = state.isValid && !state.isSubmitting) { Text(if (state.isSubmitting) "Saving..." else "Save") }
+            Spacer(Modifier.width(12.dp)); OutlinedButton(onClick = onCancel, enabled = !state.isSubmitting) { Text("Cancel") } }
+        if (!state.isValid) Text("All ratings, transport type, line, and location are required.", style = MaterialTheme.typography.bodySmall)
     }
+}
+
+@Composable fun RatingSelector(label: String, low: String, high: String, selected: Int?, onSelect: (Int) -> Unit) {
+    Spacer(Modifier.height(12.dp)); Text(label, style = MaterialTheme.typography.labelLarge)
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { (1..5).forEach { value -> FilterChip(selected == value, { onSelect(value) }, { Text("$value") }) } }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(low, style = MaterialTheme.typography.bodySmall); Text(high, style = MaterialTheme.typography.bodySmall) }
+}
+
+@Composable private fun Selector(label: String, value: String, choices: List<String>, onSelect: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }; Spacer(Modifier.height(12.dp)); Text(label, style = MaterialTheme.typography.labelLarge)
+    Box { OutlinedButton({ expanded = true }, Modifier.fillMaxWidth()) { Text(value) }
+        DropdownMenu(expanded, { expanded = false }) { choices.forEach { choice -> DropdownMenuItem({ Text(choice) }, { onSelect(choice); expanded = false }) } } }
+}
+
+@Composable private fun SearchableLineSelector(state: FeedbackFormState, choices: List<String>, onSelect: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }; var query by remember(state.transportType) { mutableStateOf("") }
+    Spacer(Modifier.height(12.dp)); Text("Line", style = MaterialTheme.typography.labelLarge)
+    OutlinedButton({ if (state.transportType != null) expanded = true }, Modifier.fillMaxWidth(), enabled = state.transportType != null) { Text(state.line ?: "Select line") }
+    DropdownMenu(expanded, { expanded = false }) {
+        OutlinedTextField(query, { query = it }, label = { Text("Filter lines") }, modifier = Modifier.padding(8.dp))
+        choices.filter { it.contains(query, ignoreCase = true) }.take(20).forEach { line -> DropdownMenuItem({ Text(line) }, { onSelect(line); expanded = false }) }
+    }
+}
+
+private fun locationMessage(state: LocationState) = when (state) {
+    LocationState.Idle, LocationState.PermissionRequired -> "Location permission required"
+    LocationState.RequestingPermission -> "Requesting location permission..."
+    LocationState.Loading -> "Getting location..."
+    is LocationState.Available -> "Location available"
+    LocationState.PermissionDenied -> "Location permission denied"
+    LocationState.Error -> "Unable to get location"
 }

@@ -35,10 +35,8 @@ fun AppNav(vm: FeedbackViewModel, isAdmin: Boolean) {
 
         composable(Routes.ADD) {
             AddFeedbackScreen(
-                onSave = { score, comment, line, lat, lon ->
-                    vm.addFeedback(score, comment, line, lat, lon)
-                    navController.popBackStack()
-                },
+                vm = vm,
+                onSaved = { navController.popBackStack() },
                 onCancel = { navController.popBackStack() }
             )
         }

@@ -25,7 +25,11 @@ class FeedbackRepository(
 ) {
     fun getAllFeedback(): Flow<List<FeedbackEntity>> = dao.getAll()
 
-    suspend fun addFeedback(item: FeedbackEntity): Long = dao.insert(item)
+    suspend fun addFeedback(item: FeedbackEntity): Long {
+        val id = dao.insert(item.copy(syncState = SyncState.PENDING_CREATE))
+        scheduleSync()
+        return id
+    }
 
     fun getById(localId: Long) = dao.getByLocalId(localId)
 

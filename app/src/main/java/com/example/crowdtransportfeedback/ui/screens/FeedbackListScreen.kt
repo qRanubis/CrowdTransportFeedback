@@ -55,15 +55,15 @@ fun FeedbackListScreen(
                         .clickable { onItemClick(item.localId) }
                 ) {
                     Text(
-                        text = "Score: ${item.score} | Line: ${item.line ?: "-"}",
+                        text = listOfNotNull(item.transportType?.displayName, item.line).joinToString(" ").ifBlank { "Transport not available" },
                         style = MaterialTheme.typography.titleMedium
                     )
                     Text(
-                        text = item.comment,
+                        text = "Overall trust: ${item.score}/5",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
-                        text = "Local id=${item.localId}  ${item.syncState.displayName}",
+                        text = item.syncState.displayName,
                         style = MaterialTheme.typography.bodySmall
                     )
                 }

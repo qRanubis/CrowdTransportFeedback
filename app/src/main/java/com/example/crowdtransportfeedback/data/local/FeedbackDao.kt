@@ -45,7 +45,11 @@ interface FeedbackDao {
             latitude = :latitude,
             longitude = :longitude,
             line = :line,
-            createdAt = :createdAt
+            createdAt = :createdAt,
+            transportType = :transportType,
+            crowdingScore = :crowdingScore,
+            cleanlinessScore = :cleanlinessScore,
+            punctualityScore = :punctualityScore
         WHERE feedbackId = :feedbackId AND syncState = 'SYNCED'
         """
     )
@@ -56,7 +60,9 @@ interface FeedbackDao {
         latitude: Double?,
         longitude: Double?,
         line: String?,
-        createdAt: Long
+        createdAt: Long,
+        transportType: com.example.crowdtransportfeedback.domain.TransportType?,
+        crowdingScore: Int?, cleanlinessScore: Int?, punctualityScore: Int?
     ): Int
 
     @Query("DELETE FROM feedback WHERE syncState = 'SYNCED'")
@@ -79,7 +85,11 @@ interface FeedbackDao {
                 latitude = item.latitude,
                 longitude = item.longitude,
                 line = item.line,
-                createdAt = item.createdAt
+                createdAt = item.createdAt,
+                transportType = item.transportType,
+                crowdingScore = item.crowdingScore,
+                cleanlinessScore = item.cleanlinessScore,
+                punctualityScore = item.punctualityScore
             )
             if (updated == 0) {
                 insertRemote(item)
