@@ -1,4 +1,59 @@
 #!/bin/sh
-if command -v mvn >/dev/null 2>&1; then exec mvn "$@"; fi
-echo "Maven is required (wrapper distribution download unavailable)" >&2
-exit 1
+set -eu
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+PROPERTIES="$SCRIPT_DIR/.mvn/wrapper/maven-wrapper.properties"
+
+if [ ! -f "$PROPERTIES" ]; then
+  echo "Missing Maven wrapper properties: $PROPERTIES" >&2
+  exit 1
+fi
+
+DISTRIBUTION_URL=$(sed -n 's/^distributionUrl=//p' "$PROPERTIES" | head -n 1)
+if [ -z "$DISTRIBUTION_URL" ]; then
+  echo "distributionUrl is missing from maven-wrapper.properties" >&2
+  exit 1
+fi
+
+ARCHIVE_NAME=${DISTRIBUTION_URL##*/}
+DISTRIBUTION_NAME=${ARCHIVE_NAME%-bin.zip}
+MAVEN_USER_HOME=${MAVEN_USER_HOME:-"$HOME/.m2"}
+MAVEN_HOME="$MAVEN_USER_HOME/wrapper/dists/$DISTRIBUTION_NAME"
+MAVEN_CMD="$MAVEN_HOME/bin/mvn"
+
+if [ ! -x "$MAVEN_CMD" ]; then
+  TMP_DIR=$(mktemp -d)
+  trap 'rm -rf "$TMP_DIR"' EXIT HUP INT TERM
+  ARCHIVE="$TMP_DIR/$ARCHIVE_NAME"
+
+  echo "Downloading Maven from $DISTRIBUTION_URL"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fL "$DISTRIBUTION_URL" -o "$ARCHIVE"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -O "$ARCHIVE" "$DISTRIBUTION_URL"
+  else
+    echo "curl or wget is required for the first Maven wrapper run" >&2
+    exit 1
+  fi
+
+  if ! command -v unzip >/dev/null 2>&1; then
+    echo "unzip is required for the first Maven wrapper run" >&2
+    exit 1
+  fi
+
+  unzip -q "$ARCHIVE" -d "$TMP_DIR"
+  EXTRACTED="$TMP_DIR/$DISTRIBUTION_NAME"
+  if [ ! -x "$EXTRACTED/bin/mvn" ]; then
+    echo "Downloaded archive does not contain the expected Maven distribution" >&2
+    exit 1
+  fi
+
+  mkdir -p "$(dirname "$MAVEN_HOME")"
+  rm -rf "$MAVEN_HOME"
+  mv "$EXTRACTED" "$MAVEN_HOME"
+  rm -rf "$TMP_DIR"
+  trap - EXIT HUP INT TERM
+fi
+
+cd "$SCRIPT_DIR"
+exec "$MAVEN_CMD" "$@"
