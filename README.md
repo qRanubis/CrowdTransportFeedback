@@ -27,7 +27,8 @@ Feedback can be stored locally (offline) and synchronized with a REST server whe
 - **Mandatory GPS integration**
 - Local persistence using Room
 - REST API communication using **Retrofit**
-- Offline-first synchronization strategy
+- Offline-first, eventually consistent synchronization strategy
+- Durable automatic retry with AndroidX WorkManager
 - Admin-only delete functionality
 - MVVM architecture
 - UI built with Jetpack Compose
@@ -43,6 +44,7 @@ Feedback can be stored locally (offline) and synchronized with a REST server whe
 - **Networking**: Retrofit + Json
 - **Location**: Google Play Services Location
 - **State Management**: ViewModel + StateFlow
+- **Background work**: AndroidX WorkManager
 
 ---
 
@@ -106,7 +108,7 @@ The app uses a simple REST API for synchronization.
 mkdir dir
 cd dir
 npm install
-npx json-server --watch db.json --port 3000
+npx json-server@0.17.4 --watch db.json --host 0.0.0.0 --port 3000
 ```
 
 ---
@@ -114,11 +116,16 @@ npx json-server --watch db.json --port 3000
 
 ### Emulator Networking Note
 
-Android Emulator cannot access localhost.
+`0.0.0.0` is only the server bind address; do not open it in a browser.
 
-The app is configured to use:
+From the Windows host, open:
 
-`http://10.0.2.2:3000`
+`http://localhost:3000/feedback`
+
+Android Emulator cannot access the Windows host through `localhost`. From the
+Android Emulator, the app or browser uses:
+
+`http://10.0.2.2:3000/feedback`
 
 This maps to your local machine.
 
@@ -132,12 +139,28 @@ This maps to your local machine.
 - App attempts to `POST` data to the server
 - If successful: `syncState = SYNCED`
 - If server is unavailable: remains local
+- Failed uploads remain `PENDING_CREATE` and a connectivity-constrained worker retries them
+- Retries first look up the stable UUID on the server, so a timed-out POST cannot create a duplicate
 
-#### Downlaod (Server to Local)
+#### Download and reconciliation
 
-- Press Sync from server
+- Press **Sync now** to run the same complete sync pass used by background work
 - Server entries are inserted/updated locally
 - Deleted server entries are removed locally
+- Unsynchronized local creates and delete tombstones are preserved during reconciliation
+
+#### Deletion
+
+- A delete is first stored as a `PENDING_DELETE` tombstone and immediately hidden from normal lists
+- The server is deleted by the stable feedback UUID; both a successful response and HTTP 404 confirm deletion
+- Network/server failures retain the tombstone for automatic retry instead of losing it locally
+
+#### Automatic synchronization
+
+- One-time unique work is requested after a failed mutation and at application startup
+- A unique 15-minute periodic job provides a safety net without creating duplicate jobs
+- Both jobs require a connected network and use WorkManager exponential retry/backoff
+- Each pass processes pending deletes, pending creates, and finally the server download in that order
   
 ---
 

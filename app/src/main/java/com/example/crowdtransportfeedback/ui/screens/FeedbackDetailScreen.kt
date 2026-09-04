@@ -3,6 +3,7 @@ package com.example.crowdtransportfeedback.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.crowdtransportfeedback.ui.viewmodel.FeedbackViewModel
@@ -16,13 +17,17 @@ fun FeedbackDetailScreen(
     onBack: () -> Unit
 ) {
     val item by vm.getFeedbackById(id).collectAsState(initial = null)
+    var isDeleting by rememberSaveable(id) { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        Button(onClick = { onBack() }) {
+        Button(
+            onClick = { onBack() },
+            enabled = !isDeleting
+        ) {
             Text("Back")
         }
 
@@ -44,19 +49,21 @@ fun FeedbackDetailScreen(
             Text("Local id: ${current.localId}")
         }
 
-
         if (isAdmin && current != null) {
             Spacer(modifier = Modifier.height(12.dp))
 
             Button(
+                enabled = !isDeleting,
                 onClick = {
-                    vm.deleteFeedbackAdmin(id) { onBack() }
+                    if (!isDeleting) {
+                        isDeleting = true
+                        vm.deleteFeedbackAdmin(id) { onBack() }
+                    }
                 }
             ) {
                 Text("Delete (admin)")
             }
         }
-
     }
 }
 
