@@ -7,7 +7,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.ViewModelProvider
 import com.example.crowdtransportfeedback.data.local.DatabaseProvider
 import com.example.crowdtransportfeedback.data.repository.FeedbackRepository
-import com.example.crowdtransportfeedback.data.remote.RetrofitClient
 import com.example.crowdtransportfeedback.ui.theme.CrowdTransportFeedbackTheme
 import com.example.crowdtransportfeedback.ui.viewmodel.FeedbackViewModel
 import com.example.crowdtransportfeedback.ui.viewmodel.FeedbackViewModelFactory
@@ -23,18 +22,18 @@ class MainActivity : ComponentActivity() {
         // build dependencies
         val db = DatabaseProvider.getDatabase(this)
         val syncScheduler = FeedbackSyncScheduler(this)
+        val app = application as CrowdTransportApplication
         val repo = FeedbackRepository(
             db.feedbackDao(),
-            RetrofitClient.api,
-            syncScheduler::scheduleOneTime
+            app.services.network.feedbackApi,
+            syncScheduler::scheduleOneTime,
+            app.services.network.sessionManager::hasTemporaryRefreshFailure
         )
         val factory = FeedbackViewModelFactory(repo)
         val vm: FeedbackViewModel = ViewModelProvider(this, factory)[FeedbackViewModel::class.java]
-        val isAdmin = true
-
         setContent {
             CrowdTransportFeedbackTheme {
-                AppNav(vm = vm, isAdmin = true) // schimbat false nu mai am delete
+                AppNav(vm = vm, authRepository = app.services.authRepository, sessionManager = app.services.network.sessionManager)
             }
         }
     }

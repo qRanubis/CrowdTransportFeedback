@@ -21,7 +21,8 @@ private val synchronizationMutex = Mutex()
 class FeedbackRepository(
     private val dao: FeedbackDao,
     private val api: FeedbackApi,
-    private val scheduleSync: () -> Unit = {}
+    private val scheduleSync: () -> Unit = {},
+    private val temporaryAuthFailure: () -> Boolean = { false }
 ) {
     fun getAllFeedback(): Flow<List<FeedbackEntity>> = dao.getAll()
 
@@ -52,7 +53,7 @@ class FeedbackRepository(
             dao.reconcileRemote(remoteList.map { it.toEntity() })
         } catch (error: Exception) {
             when {
-                error.isTransient() -> transientFailure = true
+                error.isTransient() || error.isTemporaryAuthenticationFailure() -> transientFailure = true
                 error is HttpException -> Unit // A non-transient HTTP response should not back off/retry.
                 else -> throw error
             }
@@ -106,7 +107,7 @@ class FeedbackRepository(
         }
     } catch (error: Exception) {
         when {
-            error.isTransient() -> Attempt.TRANSIENT_FAILURE
+            error.isTransient() || error.isTemporaryAuthenticationFailure() -> Attempt.TRANSIENT_FAILURE
             error is HttpException -> Attempt.PERMANENT_FAILURE
             else -> throw error
         }
@@ -123,7 +124,7 @@ class FeedbackRepository(
         }
     } catch (error: Exception) {
         when {
-            error.isTransient() -> Attempt.TRANSIENT_FAILURE
+            error.isTransient() || error.isTemporaryAuthenticationFailure() -> Attempt.TRANSIENT_FAILURE
             error is HttpException -> Attempt.PERMANENT_FAILURE
             else -> throw error
         }
@@ -141,13 +142,16 @@ class FeedbackRepository(
         }
     } catch (error: Exception) {
         when {
-            error.isTransient() -> Attempt.TRANSIENT_FAILURE
+            error.isTransient() || error.isTemporaryAuthenticationFailure() -> Attempt.TRANSIENT_FAILURE
             error is HttpException -> Attempt.PERMANENT_FAILURE
             else -> throw error
         }
     }
 
     private enum class Attempt { SUCCESS, TRANSIENT_FAILURE, PERMANENT_FAILURE }
+
+    private fun Exception.isTemporaryAuthenticationFailure(): Boolean =
+        this is HttpException && code() == 401 && temporaryAuthFailure()
 }
 
 private fun Exception.isTransient(): Boolean =

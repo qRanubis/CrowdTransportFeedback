@@ -1,235 +1,49 @@
-#  CrowdTransportFeedback
+# CrowdTransportFeedback — Milestone 4
 
-**Crowdsourcing App for Mapping Trust Levels in Public Transport**
+CrowdTransportFeedback is an offline-first Android application backed by one modular Spring Boot monolith. Android persists feedback in Room and synchronizes it through WorkManager; the backend owns authentication, authorization, feedback ownership, and PostgreSQL persistence.
 
-Android application for collecting user feedback about public transport services, featuring offline-first storage, mandatory GPS location, REST API synchronization and admin moderation.
+## Architecture
 
----
+- `app/`: Kotlin/Jetpack Compose Android client. Room remains schema **version 3** and retains distributed `feedbackId` UUIDs, local-only `localId`, tombstones, and `PENDING_DELETE -> PENDING_CREATE -> reconciliation` synchronization.
+- `backend/`: Java 21, Maven, Spring Boot, Web, Security, Data JPA, Validation, Flyway, Actuator, JJWT, and the PostgreSQL driver. It is one modular monolith with `auth`, `security`, `user`, `feedback`, and `common` packages—not microservices.
+- `docker-compose.yml`: PostgreSQL 17 on host port 5434 and the backend on port 8080, with a named `postgres_data` volume.
 
-## Application Overview
+## Authentication and authorization
 
-The application allows users to submit feedback regarding public transport (bus, metro, etc.) by providing:
+`POST /api/auth/register` validates email/password and immediately returns an authenticated access/refresh pair; registration always creates `USER`. `POST /api/auth/login` does the same for valid credentials. Passwords are BCrypt hashes and emails are trimmed/lowercased. Feedback APIs require a bearer access JWT. JWTs contain the user UUID and role, are signed with `JWT_SECRET`, and default to 20 minutes.
 
-- a score 
-- a textual comment
-- the transport line
-- GPS location (mandatory)
+Refresh tokens are opaque 256-bit random values. PostgreSQL stores only their SHA-256 hashes. `POST /api/auth/refresh` pessimistically locks the session, revokes the old token, links it to its replacement, and returns rotated access/refresh tokens. Each successful rotation starts a new configurable inactivity period (90 days by default). Rotated, revoked, or inactive tokens are rejected. `POST /api/auth/logout` accepts the refresh token without requiring a valid access JWT and revokes it.
 
-Feedback can be stored locally (offline) and synchronized with a REST server when available.
+Roles are enforced by Spring Security: `USER` and `ADMIN` may GET/POST feedback; only `ADMIN` may DELETE. Ownership always comes from the authenticated JWT—not request JSON. Duplicate identical creates by the same owner are idempotent; conflicting content or ownership returns 409.
 
----
+### Optional local admin
 
-## Implemented Features
+Set both `APP_ADMIN_EMAIL` and `APP_ADMIN_PASSWORD` before startup. The application creates a BCrypt-protected `ADMIN` only when the normalized email does not exist. There is no client-side promotion flow. Register through Android to test `USER`; log in with the environment-bootstrapped account to test `ADMIN`.
 
-- Feedback list screen
-- Feedback detail screen (score, comment, line, GPS, date)
-- Add feedback form
-- **Mandatory GPS integration**
-- Local persistence using Room
-- REST API communication using **Retrofit**
-- Offline-first, eventually consistent synchronization strategy
-- Durable automatic retry with AndroidX WorkManager
-- Admin-only delete functionality
-- MVVM architecture
-- UI built with Jetpack Compose
+## Android sessions and offline behavior
 
----
+`SecureTokenStore` stores access token, refresh token, user UUID/email/role in Android Keystore-backed encrypted preferences and excludes that file from backup. A single application-scoped dependency container is shared by UI and WorkManager. An interceptor attaches access JWTs; an OkHttp authenticator retries once after rotation. `SessionManager` uses a process-wide coroutine `Mutex`, so concurrent UI/worker 401s perform one refresh and wait for its result.
 
-## Tech Stack
+A stored user session restores without login-screen flashing. Temporary refresh I/O and 5xx failures retain the encrypted local session and permit offline use; definitive refresh 401/403 clears it. Explicit Logout attempts server revocation and always clears local credentials. Delete UI derives exclusively from the stored server role.
 
-- **Language**: Kotlin
-- **UI**: Jetpack Compose
-- **Architecture**: MVVM
-- **Local DB**: Room
-- **Networking**: Retrofit + Json
-- **Location**: Google Play Services Location
-- **State Management**: ViewModel + StateFlow
-- **Background work**: AndroidX WorkManager
+Authenticated WorkManager synchronization retains unique one-time/periodic work, connected-network constraints, exponential backoff, the process-wide synchronization mutex, tombstone-first ordering, immediate local Save/Delete, and uncertain-POST confirmation.
 
----
+## Local development
 
-# How to Run the Project
+1. Copy `.env.example` to untracked `.env` and replace `DATABASE_PASSWORD` and `JWT_SECRET` (at least 32 random bytes).
+2. Run `docker compose config`, then `docker compose up --build`.
+3. Verify `curl http://localhost:8080/actuator/health`.
 
-### 1️. Open the Android App
+The Windows/host URL is `http://localhost:8080`. The Android emulator uses `http://10.0.2.2:8080/`; never use `0.0.0.0` as a client destination. Cleartext traffic is narrowly allowed only for emulator host `10.0.2.2`; production endpoints must use HTTPS. Only `/actuator/health` is exposed by Actuator.
 
-1. Open the project in Android Studio
-2. Let Gradle sync
-3. Run the app on an Android Emulator
+### One-time json-server development cutover
 
----
+json-server is no longer in the normal path. Prototype records have no authenticated ownership and are not imported or assigned silently. For the first full Milestone 4 test, use a **fresh PostgreSQL development database** and clear Android application data/reinstall if the device contains old json-server-era rows. This is a manual development cutover, not a destructive Room migration; application code never wipes data automatically.
 
-### 2️. GPS Configuration (IMPORTANT)
+## Configuration
 
-GPS is **mandatory** when adding feedback.
+See `.env.example`: `DATABASE_URL` (used directly outside Compose), `DATABASE_USERNAME`, `DATABASE_PASSWORD`, `JWT_SECRET`, `ACCESS_TOKEN_LIFETIME`, `REFRESH_SESSION_INACTIVITY`, and optional admin credentials. Never commit `.env` or real credentials.
 
-In Android Emulator:
+## Tests and checks
 
-1. Open Extended Controls
-2. Go to Location
-3. Set a location 
-4. Click Send
-
-If GPS is not set:
-- the app will not allow saving feedback
-
----
-
-### 3️. Offline Mode (No Server Required)
-
-You can fully test the app **without any server**:
-
-- Add feedback
-- Data is saved locally in Room
-- `syncState = PENDING_CREATE`
-- App continues to work normally
-
-This demonstrates **offline-first behavior**.
-
----
-
-##  REST API Server 
-
-The app uses a simple REST API for synchronization.
-
-### Server Technology
-- `json-server`
-- `Node.js`
-
----
-
-### Start the Server
-
-#### Requirements
-- Node.js installed
-
-#### Commands
-
-```bash
-mkdir dir
-cd dir
-npm install
-npx json-server@0.17.4 --watch db.json --host 0.0.0.0 --port 3000
-```
-
----
-
-
-### Emulator Networking Note
-
-`0.0.0.0` is only the server bind address; do not open it in a browser.
-
-From the Windows host, open:
-
-`http://localhost:3000/feedback`
-
-Android Emulator cannot access the Windows host through `localhost`. From the
-Android Emulator, the app or browser uses:
-
-`http://10.0.2.2:3000/feedback`
-
-This maps to your local machine.
-
----
-
-### Synchronization Logic
-
-#### Upload (Local to Server)
-
-- Feedback is saved locally first
-- App attempts to `POST` data to the server
-- If successful: `syncState = SYNCED`
-- If server is unavailable: remains local
-- Failed uploads remain `PENDING_CREATE` and a connectivity-constrained worker retries them
-- Retries first look up the stable UUID on the server, so a timed-out POST cannot create a duplicate
-
-#### Download and reconciliation
-
-- Press **Sync now** to run the same complete sync pass used by background work
-- Server entries are inserted/updated locally
-- Deleted server entries are removed locally
-- Unsynchronized local creates and delete tombstones are preserved during reconciliation
-
-#### Deletion
-
-- A delete is first stored as a `PENDING_DELETE` tombstone and immediately hidden from normal lists
-- The server is deleted by the stable feedback UUID; both a successful response and HTTP 404 confirm deletion
-- Network/server failures retain the tombstone for automatic retry instead of losing it locally
-
-#### Automatic synchronization
-
-- One-time unique work is requested after a failed mutation and at application startup
-- A unique 15-minute periodic job provides a safety net without creating duplicate jobs
-- Both jobs require a connected network and use WorkManager exponential retry/backoff
-- Each pass processes pending deletes, pending creates, and finally the server download in that order
-  
----
-
-### Offline-First Strategy
-
-You can fully test the app without any server:
-
-- Add feedback
-- Data is saved locally in Room
-- `syncState = PENDING_CREATE`
-- App continues to work normally
-
----
-
-### Admin Mode
-
-The app supports **two roles**:
-
-#### User
-- Can add and view feedback
-- Cannot delete feedback
-
-#### Admin
-- Can delete feedback
-- Deletion propagates to server (if synced)
-
-#### Enable Admin Mode
-
-Set in code:
-
-```kotlin
-val isAdmin = true
-```
----
-### GPS Integration
-- Location permission requested at runtime
-- Saving feedback requires valid latitude & longitude
-- Coordinates are stored:
-  - locally (Room)
-  - remotely (REST API)
-
----
-
-### Project Structure
-
-```text
-app/
- ├─ data/
- │   ├─ local/        # Room entities, DAO, database
- │   ├─ remote/       # Retrofit API, DTOs
- │   └─ repository/   # Sync & business logic
- │
- ├─ ui/
- │   ├─ screens/      # Compose screens
- │   ├─ viewmodel/    # ViewModels
- │   └─ navigation/   # Navigation graph
- │
- └─ MainActivity.kt
-```
-
----
-### Author
-
-Vitregu Valentin-Rareș - SCPD
-
-## Milestone 3: structured transport feedback
-
-New reports use four mandatory clickable 1–5 ratings: **Overall trust** (very low to very high), crowding comfort (extremely crowded to plenty of space), cleanliness (very dirty to very clean), and punctuality (very poor to very good). Every scale consistently uses 1 as negative and 5 as positive. A report also requires an explicitly selected Bus, Night bus, Tram, Trolleybus, or Metro line from the static September 2026 Bucharest catalog; normal and night buses remain separate.
-
-Room database version 3 uses a non-destructive 2 → 3 migration. Legacy rows retain their identity, rating, comment, coordinates, line, timestamp, and sync state while new structured columns remain null. Legacy json-server records with missing structured properties also deserialize as null.
-
-Location captures one current point when a report is submitted (with last-known location only as fallback). The app does not continuously track trips and does not request background location. Validation requires all structured selections and an available location; comments are optional and trimmed. Saving is accepted after the row is persisted locally, while the unchanged Milestone 2 offline synchronization uploads and retries it separately.
+Run backend tests/package from `backend/` with `./mvnw test` and `./mvnw package`. Run Android checks from the root with `./gradlew testDebugUnitTest`, `./gradlew lintDebug`, and `./gradlew assembleDebug`; an emulator is required for `./gradlew connectedDebugAndroidTest`. Docker validation uses `docker compose config`; `docker compose up --build` plus the health curl validates the complete runtime.

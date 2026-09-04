@@ -1,0 +1,21 @@
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5434/crowd_feedback}
+    username: ${DATABASE_USERNAME:crowd}
+    password: ${DATABASE_PASSWORD:crowd_dev_only}
+  jpa:
+    open-in-view: false
+    hibernate.ddl-auto: validate
+  flyway.enabled: true
+server.error:
+  include-message: never
+  include-stacktrace: never
+management.endpoints.web.exposure.include: health
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+    access-lifetime: ${ACCESS_TOKEN_LIFETIME:PT20M}
+  refresh-inactivity: ${REFRESH_SESSION_INACTIVITY:P90D}
+  admin:
+    email: ${APP_ADMIN_EMAIL:}
+    password: ${APP_ADMIN_PASSWORD:}

@@ -1,0 +1,11 @@
+package com.example.crowdtransportfeedback.feedback;
+import com.example.crowdtransportfeedback.common.ApiException; import com.example.crowdtransportfeedback.user.*; import org.junit.jupiter.api.*; import java.time.Instant; import java.util.*; import static org.junit.jupiter.api.Assertions.*; import static org.mockito.ArgumentMatchers.*; import static org.mockito.Mockito.*;
+class FeedbackServiceTest {
+ FeedbackRepository repository=mock(FeedbackRepository.class); UserRepository users=mock(UserRepository.class); FeedbackService service=new FeedbackService(repository,users); UUID owner=UUID.randomUUID(); UUID id=UUID.randomUUID(); FeedbackDtos.Request request=new FeedbackDtos.Request(id,"BUS","123",5,4,3,2,"comment",44.4,26.1,100L);
+ @BeforeEach void setup(){when(repository.save(any())).thenAnswer(i->i.getArgument(0));when(users.getReferenceById(owner)).thenReturn(new AppUser(owner,"user@example.com","hash",Role.USER,Instant.now()));}
+ @Test void authenticatedUserBecomesOwnerAndGetByIdWorks(){var created=service.create(request,owner);assertEquals(owner,created.createdByUserId());verify(repository).save(any());var stored=entity(owner);when(repository.findById(id)).thenReturn(Optional.of(stored));assertEquals(id,service.get(id).feedbackId());}
+ @Test void identicalOwnerRetryIsIdempotent(){when(repository.findById(id)).thenReturn(Optional.of(entity(owner)));assertEquals(id,service.create(request,owner).feedbackId());verify(repository,never()).save(any());}
+ @Test void anotherUserCannotClaimExistingId(){when(repository.findById(id)).thenReturn(Optional.of(entity(owner)));assertThrows(ApiException.class,()->service.create(request,UUID.randomUUID()));}
+ @Test void missingDeleteReturnsNotFound(){when(repository.existsById(id)).thenReturn(false);assertEquals("feedback_not_found",assertThrows(ApiException.class,()->service.delete(id)).code);}
+ private Feedback entity(UUID user){Feedback f=new Feedback();f.feedbackId=id;f.owner=new AppUser(user,"user@example.com","hash",Role.USER,Instant.now());f.transportType="BUS";f.line="123";f.score=5;f.punctualityScore=4;f.cleanlinessScore=3;f.crowdingScore=2;f.comment="comment";f.latitude=44.4;f.longitude=26.1;f.createdAt=100;return f;}
+}

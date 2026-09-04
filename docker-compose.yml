@@ -1,0 +1,29 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-crowd_feedback}
+      POSTGRES_USER: ${DATABASE_USERNAME:-crowd}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?set DATABASE_PASSWORD in .env}
+    ports: ["5434:5432"]
+    volumes: ["postgres_data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-crowd_feedback}
+      DATABASE_USERNAME: ${DATABASE_USERNAME:-crowd}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:?set DATABASE_PASSWORD in .env}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      ACCESS_TOKEN_LIFETIME: ${ACCESS_TOKEN_LIFETIME:-PT20M}
+      REFRESH_SESSION_INACTIVITY: ${REFRESH_SESSION_INACTIVITY:-P90D}
+      APP_ADMIN_EMAIL: ${APP_ADMIN_EMAIL:-}
+      APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:-}
+    ports: ["8080:8080"]
+    depends_on:
+      postgres: {condition: service_healthy}
+volumes: {postgres_data: {}}

@@ -12,9 +12,11 @@ class FeedbackSyncWorker(
     workerParams: WorkerParameters
 ) : CoroutineWorker(appContext, workerParams) {
     override suspend fun doWork(): Result {
+        val session = (applicationContext as com.example.crowdtransportfeedback.CrowdTransportApplication).services.network.sessionManager
         val repository = FeedbackRepository(
             DatabaseProvider.getDatabase(applicationContext).feedbackDao(),
-            RetrofitClient.api
+            (applicationContext as com.example.crowdtransportfeedback.CrowdTransportApplication).services.network.feedbackApi,
+            temporaryAuthFailure = session::hasTemporaryRefreshFailure
         )
         return try {
             if (repository.synchronize().transientFailure) Result.retry() else Result.success()

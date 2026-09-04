@@ -10,6 +10,14 @@ import com.example.crowdtransportfeedback.ui.screens.AddFeedbackScreen
 import com.example.crowdtransportfeedback.ui.screens.FeedbackDetailScreen
 import com.example.crowdtransportfeedback.ui.screens.FeedbackListScreen
 import com.example.crowdtransportfeedback.ui.viewmodel.FeedbackViewModel
+import com.example.crowdtransportfeedback.auth.*
+import com.example.crowdtransportfeedback.ui.screens.AuthScreen
+import com.example.crowdtransportfeedback.ui.screens.AccountBar
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.weight
+import androidx.compose.ui.Modifier
 
 object Routes {
     const val LIST = "list"
@@ -18,12 +26,23 @@ object Routes {
 }
 
 @Composable
-fun AppNav(vm: FeedbackViewModel, isAdmin: Boolean) {
-    val navController = rememberNavController()
+fun AppNav(vm: FeedbackViewModel, authRepository: AuthRepository, sessionManager: SessionManager) {
+    val sessionState by sessionManager.state.collectAsState()
+    when (val state = sessionState) {
+        SessionState.Loading -> { androidx.compose.material3.CircularProgressIndicator(); return }
+        SessionState.Unauthenticated -> { AuthScreen(authRepository, sessionManager); return }
+        is SessionState.Authenticated -> AuthenticatedNav(vm, state.user, authRepository, sessionManager)
+    }
+}
 
+@Composable private fun AuthenticatedNav(vm: FeedbackViewModel, user: AuthUser, authRepository: AuthRepository, sessionManager: SessionManager) {
+    val navController = rememberNavController()
+    Column {
+    AccountBar(user.email,user.role.name,authRepository,sessionManager)
     NavHost(
         navController = navController,
-        startDestination = Routes.LIST
+        startDestination = Routes.LIST,
+        modifier = Modifier.weight(1f)
     ) {
         composable(Routes.LIST) {
             FeedbackListScreen(
@@ -52,9 +71,10 @@ fun AppNav(vm: FeedbackViewModel, isAdmin: Boolean) {
             FeedbackDetailScreen(
                 vm = vm,
                 id = id,
-                isAdmin = isAdmin,
+                isAdmin = canDeleteFeedback(user.role),
                 onBack = { navController.popBackStack() }
             )
         }
+    }
     }
 }
