@@ -18,7 +18,7 @@ class ProfileModelsTest {
     @Test fun leaderboardKeepsSeparateCurrentUserOutsideTop100() {
         val me = LeaderboardEntryDto(137, "rares", "COMMUTER", 8, 1520, 1520, true)
         val model = LeaderboardDto(emptyList(), me)
-        assertEquals(137, model.currentUser.rank); assertTrue(model.top.isEmpty())
+        assertEquals(137L, model.currentUser.rank); assertTrue(model.top.isEmpty())
     }
 
     @Test fun pinnedOrderIsIndependentOfCatalogOrder() {
