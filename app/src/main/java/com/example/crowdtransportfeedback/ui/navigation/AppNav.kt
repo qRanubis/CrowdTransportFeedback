@@ -4,6 +4,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -57,6 +61,10 @@ private fun AuthenticatedNav(
     profileApi: ProfileApi
 ) {
     val navController = rememberNavController()
+    var avatarKey by remember(user.id) { mutableStateOf("COMMUTER") }
+    LaunchedEffect(user.id) {
+        runCatching { profileApi.me() }.onSuccess { avatarKey = it.avatarKey }
+    }
     Column {
         AccountBar(
             username = user.username,
@@ -64,7 +72,7 @@ private fun AuthenticatedNav(
             role = user.role.name,
             session = sessionManager,
             onProfile = { navController.navigate(Routes.PROFILE) },
-            profileApi = profileApi
+            avatarKey = avatarKey
         )
         NavHost(
             navController = navController,
@@ -105,7 +113,7 @@ private fun AuthenticatedNav(
                     ,onAuthor = { navController.navigate("${Routes.PUBLIC_PROFILE}/$it") }
                 )
             }
-            composable(Routes.PROFILE) { MyProfileScreen(profileApi,{navController.navigate(Routes.ACHIEVEMENTS)},{navController.navigate(Routes.LEADERBOARD)}) }
+            composable(Routes.PROFILE) { MyProfileScreen(profileApi,{navController.navigate(Routes.ACHIEVEMENTS)},{navController.navigate(Routes.LEADERBOARD)},{ avatarKey = it }) }
             composable(Routes.ACHIEVEMENTS) { AchievementsScreen(profileApi) }
             composable(Routes.LEADERBOARD) { LeaderboardScreen(profileApi){navController.navigate("${Routes.PUBLIC_PROFILE}/$it")} }
             composable("${Routes.PUBLIC_PROFILE}/{username}",arguments=listOf(navArgument("username"){type=NavType.StringType})){PublicProfileScreen(profileApi,it.arguments?.getString("username").orEmpty())}

@@ -9,11 +9,14 @@ import com.example.crowdtransportfeedback.data.remote.toDto
 import com.example.crowdtransportfeedback.data.remote.toEntity
 import java.io.IOException
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import retrofit2.HttpException
 
 data class SynchronizationResult(val transientFailure: Boolean)
+data class FeedbackAward(val feedbackId: String, val xpAwarded: Int, val newAchievements: List<String>)
 
 private val synchronizationMutex = Mutex()
 
@@ -26,6 +29,8 @@ class FeedbackRepository(
     private val currentUserRole: () -> UserRole? = { null },
     private val temporaryAuthFailure: () -> Boolean = { false }
 ) {
+    private val _awards = MutableSharedFlow<FeedbackAward>(extraBufferCapacity = 8)
+    val awards = _awards.asSharedFlow()
     fun getAllFeedback(): Flow<List<FeedbackEntity>> = dao.getAll()
 
     suspend fun addFeedback(item: FeedbackEntity): Long {
@@ -136,8 +141,11 @@ class FeedbackRepository(
                 }
                 existing.code() == 404 -> {
                     try {
-                        api.add(item.toDto())
+                        val accepted = api.add(item.toDto())
                         dao.setSyncState(item.localId, SyncState.SYNCED)
+                        if (accepted.xpAwarded != 0 || accepted.newAchievements.isNotEmpty()) {
+                            _awards.tryEmit(FeedbackAward(accepted.id, accepted.xpAwarded, accepted.newAchievements))
+                        }
                         Attempt.SUCCESS
                     } catch (postError: Exception) {
                         if (postError.isTransient()) confirmCreateAfterUncertainPost(item) else throw postError

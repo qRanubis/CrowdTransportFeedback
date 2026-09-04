@@ -57,6 +57,10 @@ public class AppUser {
         return username;
     }
 
+    public String getAvatarKey() {
+        return avatarKey;
+    }
+
     private static String generatedUsername(UUID id) {
         return "user" + id.toString().replace("-", "").substring(0, 16);
     }

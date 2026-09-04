@@ -39,6 +39,7 @@ class FeedbackServiceTest {
         var created = service.create(request, owner);
         assertEquals(owner, created.createdByUserId());
         assertEquals("owner1", created.createdByUsername());
+        assertEquals("NAVIGATOR", created.createdByAvatarKey());
         assertEquals(3.7, created.overallRating(), 0.0001);
         assertEquals(3.7, created.score(), 0.0001);
         verify(repository).save(any());
@@ -117,9 +118,11 @@ class FeedbackServiceTest {
         AppUser user = new AppUser(userId, "user@example.com", username, "hash", Role.USER, Instant.now()) {
             @Override public UUID getId() { return userId; }
             @Override public String getUsername() { return expectedUsername; }
+            @Override public String getAvatarKey() { return "NAVIGATOR"; }
         };
         user.id = null;
         user.username = null;
+        user.avatarKey = "COMMUTER";
         return user;
     }
 }

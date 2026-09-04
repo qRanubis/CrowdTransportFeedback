@@ -64,6 +64,23 @@ class GamificationServiceTest {
         assertEquals(saved.size(),unlocked.size());
     }
 
+    @Test void hibernateProxyUsesGetterForAwardsAchievementsLifetimeBonusesAndRevocation() {
+        UUID realId=UUID.randomUUID();
+        AppUser proxy=new AppUser(realId,"proxy@example.com","proxyuser","hash",Role.USER,Instant.EPOCH){@Override public UUID getId(){return realId;}};
+        proxy.id=null;
+        Feedback first=itemFor(proxy,UUID.randomUUID(),TransportType.METRO,"M5",0);
+        when(feedback.findByOwnerId(realId)).thenReturn(List.of(first));
+        assertEquals(120,service.award(proxy,first).xpAwarded());
+        verify(feedback,atLeastOnce()).findByOwnerId(realId);
+        verify(achievements,atLeastOnce()).existsByUserIdAndCode(eq(realId),anyString());
+
+        Feedback second=itemFor(proxy,UUID.randomUUID(),TransportType.METRO,"M5",1);
+        assertEquals(10,service.award(proxy,second).xpAwarded());
+        service.revoke(proxy,first.feedbackId);
+        verify(events).existsByUserIdAndTypeAndSourceKey(realId,"FEEDBACK_BASE_REVOKED",first.feedbackId.toString());
+    }
+
     private Feedback item(UUID id,TransportType type,String line,long at){Feedback f=new TestFeedback();f.feedbackId=id;f.owner=user;f.transportType=type;f.line=line;f.normalizedLine=GamificationService.normalizeLine(line);f.createdAt=at;return f;}
+    private Feedback itemFor(AppUser owner,UUID id,TransportType type,String line,long at){Feedback f=item(id,type,line,at);f.owner=owner;return f;}
     static class TestFeedback extends Feedback { TestFeedback(){super();} }
 }

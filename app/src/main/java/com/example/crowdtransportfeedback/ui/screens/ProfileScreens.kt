@@ -18,10 +18,10 @@ private sealed interface RemoteState<out T> {
 }
 
 @Composable
-fun MyProfileScreen(api: ProfileApi, onAchievements: () -> Unit, onLeaderboard: () -> Unit) {
+fun MyProfileScreen(api: ProfileApi, onAchievements: () -> Unit, onLeaderboard: () -> Unit, onAvatarChanged: (String) -> Unit = {}) {
     var state by remember { mutableStateOf<RemoteState<ProfileDto>>(RemoteState.Loading) }
     val scope = rememberCoroutineScope()
-    fun load() { scope.launch { state = runCatching { api.me() }.fold({ RemoteState.Ready(it) }, { RemoteState.Failed("Profile unavailable. Showing no fabricated offline XP.") }) } }
+    fun load() { scope.launch { state = runCatching { api.me() }.fold({ onAvatarChanged(it.avatarKey); RemoteState.Ready(it) }, { RemoteState.Failed("Profile unavailable. Showing no fabricated offline XP.") }) } }
     LaunchedEffect(Unit) { load() }
     Column(Modifier.padding(16.dp).fillMaxSize()) {
         Text("My Profile", style = MaterialTheme.typography.headlineMedium)
@@ -35,7 +35,7 @@ fun MyProfileScreen(api: ProfileApi, onAchievements: () -> Unit, onLeaderboard: 
                 Text("$contributionCount contributions · $differentLineCount lines · $transportTypeCount types")
                 Text("$unlockedAchievementCount/$achievementTotal achievements · Rank #${allTimeXpRank ?: "—"}")
                 Text("Pinned: ${pinnedAchievements.joinToString { it.title }}")
-                Row { listOf("COMMUTER", "NAVIGATOR", "EXPLORER").forEach { key -> TextButton(onClick = { scope.launch { runCatching { api.avatar(mapOf("avatarKey" to key)) }.onSuccess { load() }.onFailure { state = RemoteState.Failed("Could not update avatar") } } }) { Text("${avatarSymbol(key)} $key") } } }
+                Row { listOf("COMMUTER", "NAVIGATOR", "EXPLORER").forEach { key -> TextButton(onClick = { scope.launch { runCatching { api.avatar(mapOf("avatarKey" to key)); api.me() }.onSuccess { refreshed -> state = RemoteState.Ready(refreshed); onAvatarChanged(refreshed.avatarKey) }.onFailure { state = RemoteState.Failed("Could not update avatar") } } }) { Text("${avatarSymbol(key)} $key") } } }
                 contributionBreakdown.forEach { (type, count) -> Text("$type: $count") }
             }
         }
@@ -98,7 +98,7 @@ fun LeaderboardScreen(api: ProfileApi, onUser: (String) -> Unit) {
         when (val current = state) {
             RemoteState.Loading -> CircularProgressIndicator()
             is RemoteState.Failed -> Text(current.message, color = MaterialTheme.colorScheme.error)
-            is RemoteState.Ready -> { Text("YOUR RANK #${current.value.currentUser.rank ?: "—"} @${current.value.currentUser.username} · ${current.value.currentUser.metricValue}"); LazyColumn { items(current.value.top) { entry -> Text("#${entry.rank} ${avatarSymbol(entry.avatarKey)} @${entry.username} · ${entry.metricValue}", Modifier.fillMaxWidth().clickable { onUser(entry.username) }.padding(8.dp)) } } }
+            is RemoteState.Ready -> { Text("YOUR RANK #${current.value.currentUser.rank ?: "—"} @${current.value.currentUser.username} · ${current.value.currentUser.metricValue}"); LazyColumn { items(current.value.top) { entry -> Surface(color = if (entry.currentUser) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface, tonalElevation = if (entry.currentUser) 3.dp else 0.dp) { Text("#${entry.rank} ${avatarSymbol(entry.avatarKey)} @${entry.username} · ${entry.metricValue}${if (entry.currentUser) " · YOU" else ""}", Modifier.fillMaxWidth().clickable { onUser(entry.username) }.padding(8.dp)) } } } }
         }
     }
 }

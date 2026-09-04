@@ -17,6 +17,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class FeedbackViewModel(private val repo: FeedbackRepository) : ViewModel() {
+    /** Server-issued award events only; Android never derives XP or achievements. */
+    val gamificationAwards = repo.awards
     val feedbackList: StateFlow<List<FeedbackEntity>> = repo.getAllFeedback().stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5000),

@@ -14,7 +14,6 @@ import com.example.crowdtransportfeedback.auth.isValidRegistrationEmail
 import com.example.crowdtransportfeedback.auth.isValidUsername
 import com.example.crowdtransportfeedback.auth.registrationPasswordError
 import kotlinx.coroutines.launch
-import com.example.crowdtransportfeedback.profile.ProfileApi
 
 @Composable
 fun AuthScreen(repository: AuthRepository, session: SessionManager) {
@@ -150,11 +149,9 @@ fun AccountBar(
     role: String,
     session: SessionManager,
     onProfile: () -> Unit = {},
-    profileApi: ProfileApi? = null
+    avatarKey: String = "COMMUTER"
 ) {
     val scope = rememberCoroutineScope()
-    var avatarKey by remember { mutableStateOf("COMMUTER") }
-    LaunchedEffect(profileApi) { profileApi?.let { runCatching { it.me() }.onSuccess { profile -> avatarKey = profile.avatarKey } } }
 
     Row(
         Modifier.fillMaxWidth().padding(8.dp),

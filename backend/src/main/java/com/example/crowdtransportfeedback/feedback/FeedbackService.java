@@ -127,7 +127,7 @@ public class FeedbackService {
             entity.feedbackId.toString(),
             entity.owner.getId(),
             entity.owner.getUsername(),
-            entity.owner.avatarKey,
+            entity.owner.getAvatarKey(),
             entity.transportType,
             entity.line,
             entity.score,
