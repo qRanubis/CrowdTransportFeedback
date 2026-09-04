@@ -38,7 +38,7 @@ public class FeedbackService {
         var found = feedback.findById(request.feedbackId());
         if (found.isPresent()) {
             Feedback existing = found.get();
-            if (!existing.owner.id.equals(userId) || !equivalent(existing, request)) {
+            if (!existing.owner.getId().equals(userId) || !equivalent(existing, request)) {
                 throw new ApiException(
                     HttpStatus.CONFLICT,
                     "feedback_id_conflict",
@@ -95,7 +95,7 @@ public class FeedbackService {
         return new Response(
             entity.feedbackId,
             entity.feedbackId.toString(),
-            entity.owner.id,
+            entity.owner.getId(),
             entity.transportType,
             entity.line,
             entity.score,
