@@ -261,11 +261,25 @@ class FeedbackRepositoryTest {
     }
 
     @Test
-    fun onlyCooldownConflictBecomesPermanentlyRejected() = runBlocking {
+    fun immediateCooldownConflictIsRemovedWhileOfflineConflictRemainsRejected() = runBlocking {
         api.nextConflictCode = "feedback_cooldown"
-        val cooldown = repository.addFeedbackAndUpload(feedback("cooldown"))
+        val immediateError = runCatching {
+            repository.addFeedbackAndUpload(feedback("immediate-cooldown"))
+        }.exceptionOrNull()
+        assertEquals("feedback_cooldown", immediateError?.message)
+        assertTrue(repository.getAllFeedback().first().none { it.feedbackId == "immediate-cooldown" })
+
+        api.networkAvailable = false
+        val cooldown = repository.addFeedbackAndUpload(feedback("offline-cooldown"))
+        assertEquals(SyncState.PENDING_CREATE, database.feedbackDao().getByLocalIdOnce(cooldown)?.syncState)
+        api.networkAvailable = true
+        api.nextConflictCode = "feedback_cooldown"
+        repository.synchronize()
         assertEquals(SyncState.REJECTED, database.feedbackDao().getByLocalIdOnce(cooldown)?.syncState)
         assertEquals("feedback_cooldown", database.feedbackDao().getByLocalIdOnce(cooldown)?.rejectionReason)
+        repository.synchronize()
+        assertEquals(SyncState.REJECTED, database.feedbackDao().getByLocalIdOnce(cooldown)?.syncState)
+        assertEquals(0, api.added.count { it.id == "offline-cooldown" })
 
         api.nextConflictCode = "feedback_id_conflict"
         val idConflict = repository.addFeedbackAndUpload(feedback("id-conflict"))

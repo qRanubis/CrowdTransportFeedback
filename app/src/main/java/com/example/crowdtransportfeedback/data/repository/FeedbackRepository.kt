@@ -118,7 +118,14 @@ class FeedbackRepository(
             createdByUserId = creator,
             createdByUsername = username
         )
-        if (processCreate(pending) != Attempt.SUCCESS) scheduleSync()
+        if (processCreate(pending) != Attempt.SUCCESS) {
+            val current = dao.getByLocalIdOnce(localId)
+            if (current?.syncState == SyncState.REJECTED && current.rejectionReason == "feedback_cooldown") {
+                dao.deleteByLocalId(localId)
+                throw IllegalArgumentException("feedback_cooldown")
+            }
+            scheduleSync()
+        }
         return localId
     }
 

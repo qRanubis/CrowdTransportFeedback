@@ -72,7 +72,7 @@ class FeedbackViewModel(private val repo: FeedbackRepository) : ViewModel() {
 
         viewModelScope.launch {
             try {
-                repo.addFeedback(
+                repo.addFeedbackAndUpload(
                     FeedbackEntity(
                         score = overall.roundToInt(),
                         comment = state.trimmedComment(),

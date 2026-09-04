@@ -50,7 +50,7 @@ fun FeedbackDetailScreen(
             Text("Comment: ${current.comment.ifBlank { "Not available" }}")
             Text("Latitude / longitude: ${current.latitude ?: "Not available"} / ${current.longitude ?: "Not available"}")
             val syncLabel = if (current.syncState == SyncState.REJECTED) {
-                "Rejected: ${current.rejectionReason ?: "synchronization rejected"}"
+                "Rejected · ${rejectionReasonLabel(current.rejectionReason)}"
             } else current.syncState.displayName
             Text("Sync status: $syncLabel")
             Text("Local id: ${current.localId}")

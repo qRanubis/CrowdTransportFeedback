@@ -62,9 +62,12 @@ fun PublicProfileScreen(api: ProfileApi, username: String) {
 fun AchievementsScreen(api: ProfileApi) {
     var state by remember { mutableStateOf<RemoteState<List<BadgeDto>>>(RemoteState.Loading) }
     val scope = rememberCoroutineScope()
+    val snackbar = remember { SnackbarHostState() }
     suspend fun refresh() { state = runCatching { api.achievements() }.fold({ RemoteState.Ready(it) }, { RemoteState.Failed("Achievements unavailable") }) }
     LaunchedEffect(Unit) { refresh() }
-    when (val current = state) {
+    Column {
+      SnackbarHost(snackbar)
+      when (val current = state) {
         RemoteState.Loading -> CircularProgressIndicator()
         is RemoteState.Failed -> Text(current.message, color = MaterialTheme.colorScheme.error)
         is RemoteState.Ready -> LazyColumn(Modifier.padding(16.dp)) {
@@ -75,15 +78,25 @@ fun AchievementsScreen(api: ProfileApi) {
                 items(list) { badge ->
                     Card(Modifier.fillMaxWidth().padding(4.dp).clickable(enabled = badge.unlocked) {
                         scope.launch {
-                            val pins = badges.filter { it.pinned }.sortedBy { it.pinOrder }.map { it.code }.toMutableList()
-                            if (badge.pinned) pins.remove(badge.code) else if (pins.size < 3) pins.add(badge.code)
-                            runCatching { api.updatePins(pins) }.onSuccess { refresh() }.onFailure { error -> state = RemoteState.Failed("Could not update pinned achievements (${error.message ?: "network error"})") }
+                            val pins = updatedPins(badges, badge)
+                            if (pins == null) {
+                                snackbar.showSnackbar("You can pin up to 3 achievements.")
+                            } else {
+                                runCatching { api.updatePins(pins) }.onSuccess { refresh() }.onFailure { error -> snackbar.showSnackbar("Could not update pinned achievements (${error.message ?: "network error"})") }
+                            }
                         }
                     }) { Column(Modifier.padding(8.dp)) { Text((if (badge.unlocked) "🏅 " else "🔒 ") + badge.title); Text(badge.description); Text("${badge.currentProgress} / ${badge.targetProgress}${if (badge.pinned) " · Pinned" else ""}"); badge.unlockedAt?.let { Text("Unlocked $it") } } }
                 }
             }
         }
+      }
     }
+}
+
+internal fun updatedPins(badges: List<BadgeDto>, tapped: BadgeDto): List<String>? {
+    val pins = badges.filter { it.pinned }.sortedBy { it.pinOrder }.map { it.code }.toMutableList()
+    if (tapped.pinned) pins.remove(tapped.code) else if (pins.size == 3) return null else pins.add(tapped.code)
+    return pins
 }
 
 @Composable
