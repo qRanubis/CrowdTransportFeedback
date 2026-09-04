@@ -72,4 +72,5 @@ private val SyncState.displayName: String
         SyncState.PENDING_CREATE -> "Pending"
         SyncState.SYNCED -> "Synchronized"
         SyncState.PENDING_DELETE -> "Pending deletion"
+        SyncState.REJECTED -> "Rejected"
     }
