@@ -57,7 +57,11 @@ class SessionManager(private val api: AuthApi, private val tokens: TokenStore) {
         val refreshToken = tokens.read()?.refreshToken
         try {
             if (refreshToken != null) {
-                runCatching { api.logout(RefreshRequest(refreshToken)) }
+                try {
+                    api.logout(RefreshRequest(refreshToken))
+                } catch (_: IOException) {
+                    // Remote revocation is best-effort while offline.
+                }
             }
         } finally {
             clear()
