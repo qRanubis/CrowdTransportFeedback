@@ -14,7 +14,8 @@ fun FeedbackEntity.toDto(): FeedbackDto = FeedbackDto(
     transportType = transportType,
     crowdingScore = crowdingScore,
     cleanlinessScore = cleanlinessScore,
-    punctualityScore = punctualityScore
+    punctualityScore = punctualityScore,
+    createdByUserId = createdByUserId
 )
 
 fun FeedbackDto.toEntity(syncState: SyncState = SyncState.SYNCED): FeedbackEntity = FeedbackEntity(
@@ -29,5 +30,6 @@ fun FeedbackDto.toEntity(syncState: SyncState = SyncState.SYNCED): FeedbackEntit
     transportType = transportType,
     crowdingScore = crowdingScore,
     cleanlinessScore = cleanlinessScore,
-    punctualityScore = punctualityScore
+    punctualityScore = punctualityScore,
+    createdByUserId = createdByUserId
 )
