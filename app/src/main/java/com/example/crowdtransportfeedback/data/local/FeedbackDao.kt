@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface FeedbackDao {
-
     @Query("SELECT * FROM feedback WHERE syncState != 'PENDING_DELETE' ORDER BY createdAt DESC")
     fun getAll(): Flow<List<FeedbackEntity>>
 
@@ -50,7 +49,8 @@ interface FeedbackDao {
             crowdingScore = :crowdingScore,
             cleanlinessScore = :cleanlinessScore,
             punctualityScore = :punctualityScore,
-            createdByUserId = :createdByUserId
+            createdByUserId = :createdByUserId,
+            createdByUsername = :createdByUsername
         WHERE feedbackId = :feedbackId AND syncState = 'SYNCED'
         """
     )
@@ -66,7 +66,8 @@ interface FeedbackDao {
         crowdingScore: Int?,
         cleanlinessScore: Int?,
         punctualityScore: Int?,
-        createdByUserId: String?
+        createdByUserId: String?,
+        createdByUsername: String?
     ): Int
 
     @Query("DELETE FROM feedback WHERE syncState = 'SYNCED'")
@@ -96,7 +97,8 @@ interface FeedbackDao {
                 crowdingScore = item.crowdingScore,
                 cleanlinessScore = item.cleanlinessScore,
                 punctualityScore = item.punctualityScore,
-                createdByUserId = item.createdByUserId
+                createdByUserId = item.createdByUserId,
+                createdByUsername = item.createdByUsername
             )
             if (updated == 0) {
                 insertRemote(item)

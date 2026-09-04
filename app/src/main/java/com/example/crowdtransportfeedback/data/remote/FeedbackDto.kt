@@ -14,5 +14,7 @@ data class FeedbackDto(
     val crowdingScore: Int? = null,
     val cleanlinessScore: Int? = null,
     val punctualityScore: Int? = null,
-    val createdByUserId: String? = null
+    val createdByUserId: String? = null,
+    val createdByUsername: String? = null,
+    val overallRating: Double? = null
 )

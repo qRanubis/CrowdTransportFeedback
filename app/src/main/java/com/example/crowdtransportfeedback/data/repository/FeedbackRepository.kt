@@ -1,21 +1,20 @@
 package com.example.crowdtransportfeedback.data.repository
 
+import com.example.crowdtransportfeedback.auth.UserRole
 import com.example.crowdtransportfeedback.data.local.FeedbackDao
 import com.example.crowdtransportfeedback.data.local.FeedbackEntity
 import com.example.crowdtransportfeedback.data.local.SyncState
 import com.example.crowdtransportfeedback.data.remote.FeedbackApi
 import com.example.crowdtransportfeedback.data.remote.toDto
 import com.example.crowdtransportfeedback.data.remote.toEntity
+import java.io.IOException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import retrofit2.HttpException
-import java.io.IOException
 
-/** The result consumed by WorkManager; only transient failures should cause backoff/retry. */
 data class SynchronizationResult(val transientFailure: Boolean)
 
-/** Serializes every full sync pass, including passes started by different repository instances. */
 private val synchronizationMutex = Mutex()
 
 class FeedbackRepository(
@@ -23,6 +22,8 @@ class FeedbackRepository(
     private val api: FeedbackApi,
     private val scheduleSync: () -> Unit = {},
     private val currentUserId: () -> String? = { null },
+    private val currentUsername: () -> String? = { null },
+    private val currentUserRole: () -> UserRole? = { null },
     private val temporaryAuthFailure: () -> Boolean = { false }
 ) {
     fun getAllFeedback(): Flow<List<FeedbackEntity>> = dao.getAll()
@@ -32,7 +33,8 @@ class FeedbackRepository(
         val id = dao.insert(
             item.copy(
                 syncState = SyncState.PENDING_CREATE,
-                createdByUserId = creator
+                createdByUserId = creator,
+                createdByUsername = currentUsername()?.takeIf { it.isNotBlank() }
             )
         )
         scheduleSync()
@@ -41,10 +43,6 @@ class FeedbackRepository(
 
     fun getById(localId: Long) = dao.getByLocalId(localId)
 
-    /**
-     * Performs the complete deterministic sync pass: deletes, creates, then download/reconcile.
-     * Pending Room rows are protected by the DAO's reconciliation transaction.
-     */
     suspend fun synchronize(): SynchronizationResult = synchronizationMutex.withLock {
         var transientFailure = false
 
@@ -61,7 +59,7 @@ class FeedbackRepository(
         } catch (error: Exception) {
             when {
                 error.isTransient() || error.isTemporaryAuthenticationFailure() -> transientFailure = true
-                error is HttpException -> Unit // A non-transient HTTP response should not back off/retry.
+                error is HttpException -> Unit
                 else -> throw error
             }
         }
@@ -70,30 +68,48 @@ class FeedbackRepository(
         SynchronizationResult(transientFailure)
     }
 
-    /** Kept as a compatibility entry point; it now runs a complete two-way synchronization. */
     suspend fun syncFromRemoteFull() {
         synchronize()
     }
 
-    suspend fun deleteFeedbackAdmin(localId: Long) {
-        if (dao.getByLocalIdOnce(localId) == null) return
+    suspend fun deleteFeedback(localId: Long) {
+        val item = dao.getByLocalIdOnce(localId) ?: return
+        val activeUser = currentUserId()
+            ?: throw IllegalStateException("An authenticated user is required to delete feedback")
+        val canDelete = currentUserRole() == UserRole.ADMIN || item.createdByUserId == activeUser
+
+        if (!canDelete) {
+            throw SecurityException("Only the author or an administrator can delete feedback")
+        }
+
+        if (item.syncState == SyncState.PENDING_CREATE) {
+            dao.deleteByLocalId(localId)
+            return
+        }
+
         dao.setSyncState(localId, SyncState.PENDING_DELETE)
         scheduleSync()
     }
 
+    suspend fun deleteFeedbackAdmin(localId: Long) {
+        deleteFeedback(localId)
+    }
+
     suspend fun addFeedbackAndUpload(item: FeedbackEntity): Long {
         val creator = requireAuthenticatedCreator()
-        // Local persistence always happens before any network operation.
+        val username = currentUsername()?.takeIf { it.isNotBlank() }
         val localId = dao.insert(
             item.copy(
                 syncState = SyncState.PENDING_CREATE,
-                createdByUserId = creator
+                createdByUserId = creator,
+                createdByUsername = username
             )
         )
         val pending = item.copy(
             localId = localId,
             syncState = SyncState.PENDING_CREATE,
-            createdByUserId = creator
+            createdByUserId = creator,
+            createdByUsername = username
         )
         if (processCreate(pending) != Attempt.SUCCESS) scheduleSync()
         return localId
@@ -137,7 +153,6 @@ class FeedbackRepository(
         }
     }
 
-    /** A timed-out/5xx POST may have persisted remotely, so confirm by distributed ID before retrying. */
     private suspend fun confirmCreateAfterUncertainPost(item: FeedbackEntity): Attempt = try {
         val confirmation = api.getById(item.feedbackId)
         val body = confirmation.body()
@@ -159,21 +174,27 @@ class FeedbackRepository(
         }
     }
 
-    private suspend fun processDelete(item: FeedbackEntity): Attempt = try {
-        val response = api.delete(item.feedbackId)
-        when {
-            response.isSuccessful || response.code() == 404 -> {
-                dao.deleteByLocalId(item.localId)
-                Attempt.SUCCESS
+    private suspend fun processDelete(item: FeedbackEntity): Attempt {
+        val activeUser = currentUserId() ?: return Attempt.BLOCKED
+        val authorized = currentUserRole() == UserRole.ADMIN || item.createdByUserId == activeUser
+        if (!authorized) return Attempt.BLOCKED
+
+        return try {
+            val response = api.delete(item.feedbackId)
+            when {
+                response.isSuccessful || response.code() == 404 -> {
+                    dao.deleteByLocalId(item.localId)
+                    Attempt.SUCCESS
+                }
+                response.code().isTransientHttpCode() -> Attempt.TRANSIENT_FAILURE
+                else -> Attempt.PERMANENT_FAILURE
             }
-            response.code().isTransientHttpCode() -> Attempt.TRANSIENT_FAILURE
-            else -> Attempt.PERMANENT_FAILURE
-        }
-    } catch (error: Exception) {
-        when {
-            error.isTransient() || error.isTemporaryAuthenticationFailure() -> Attempt.TRANSIENT_FAILURE
-            error is HttpException -> Attempt.PERMANENT_FAILURE
-            else -> throw error
+        } catch (error: Exception) {
+            when {
+                error.isTransient() || error.isTemporaryAuthenticationFailure() -> Attempt.TRANSIENT_FAILURE
+                error is HttpException -> Attempt.PERMANENT_FAILURE
+                else -> throw error
+            }
         }
     }
 

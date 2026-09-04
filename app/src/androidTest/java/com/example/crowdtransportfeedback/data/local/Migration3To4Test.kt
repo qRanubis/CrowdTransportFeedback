@@ -23,7 +23,7 @@ class Migration3To4Test {
     }
 
     @Test
-    fun version3RowSurvivesWithNullCreator() = runBlocking {
+    fun version3RowSurvivesWithNullCreatorFields() = runBlocking {
         context.deleteDatabase(name)
         SQLiteDatabase.openOrCreateDatabase(context.getDatabasePath(name), null).use { db ->
             db.execSQL(
@@ -58,7 +58,7 @@ class Migration3To4Test {
         }
 
         val database = Room.databaseBuilder(context, AppDatabase::class.java, name)
-            .addMigrations(MIGRATION_3_4)
+            .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
             .allowMainThreadQueries()
             .build()
 
@@ -68,6 +68,7 @@ class Migration3To4Test {
         assertEquals(SyncState.SYNCED, row.syncState)
         assertEquals("41", row.line)
         assertNull(row.createdByUserId)
+        assertNull(row.createdByUsername)
         database.close()
     }
 }

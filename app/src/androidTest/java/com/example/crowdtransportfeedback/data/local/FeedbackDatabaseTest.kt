@@ -13,6 +13,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -75,14 +76,33 @@ class FeedbackDatabaseTest {
 
         database.feedbackDao().reconcileRemote(emptyList())
 
-        assertEquals(SyncState.PENDING_DELETE, database.feedbackDao().getByLocalIdOnce(localId)?.syncState)
+        assertEquals(
+            SyncState.PENDING_DELETE,
+            database.feedbackDao().getByLocalIdOnce(localId)?.syncState
+        )
         assertFalse(database.feedbackDao().getAll().first().any { it.localId == localId })
+    }
+
+    @Test
+    fun visibilityKeepsForeignPendingFeedbackPrivate() {
+        val ownPending = feedback("own", createdByUserId = "user-a")
+        val foreignPending = feedback("foreign", createdByUserId = "user-b")
+        val foreignSynced = feedback(
+            "foreign-synced",
+            syncState = SyncState.SYNCED,
+            createdByUserId = "user-b"
+        )
+
+        assertTrue(ownPending.isVisibleTo("user-a"))
+        assertFalse(foreignPending.isVisibleTo("user-a"))
+        assertTrue(foreignSynced.isVisibleTo("user-a"))
     }
 
     private fun feedback(
         feedbackId: String,
         comment: String = "Comment",
-        syncState: SyncState = SyncState.PENDING_CREATE
+        syncState: SyncState = SyncState.PENDING_CREATE,
+        createdByUserId: String? = null
     ) = FeedbackEntity(
         feedbackId = feedbackId,
         score = 4,
@@ -91,7 +111,8 @@ class FeedbackDatabaseTest {
         longitude = 26.1025,
         line = "41",
         createdAt = 1_700_000_000_000,
-        syncState = syncState
+        syncState = syncState,
+        createdByUserId = createdByUserId
     )
 }
 
@@ -106,7 +127,7 @@ class FeedbackMigrationTest {
     }
 
     @Test
-    fun migrationFrom1To4PreservesFeedbackAndLegacySyncMeaning() = runBlocking {
+    fun migrationFrom1To5PreservesFeedbackAndLegacySyncMeaning() = runBlocking {
         context.deleteDatabase(databaseName)
         SQLiteDatabase.openOrCreateDatabase(context.getDatabasePath(databaseName), null).use { legacy ->
             legacy.execSQL(
@@ -136,7 +157,7 @@ class FeedbackMigrationTest {
         }
 
         val migrated = Room.databaseBuilder(context, AppDatabase::class.java, databaseName)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
             .allowMainThreadQueries()
             .build()
 
@@ -156,5 +177,7 @@ class FeedbackMigrationTest {
         assertEquals(1000L, rows[0].createdAt)
         assertNull(rows[0].createdByUserId)
         assertNull(rows[1].createdByUserId)
+        assertNull(rows[0].createdByUsername)
+        assertNull(rows[1].createdByUsername)
     }
 }

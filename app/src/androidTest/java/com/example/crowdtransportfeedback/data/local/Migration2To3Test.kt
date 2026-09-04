@@ -23,7 +23,7 @@ class Migration2To3Test {
     }
 
     @Test
-    fun legacyRowSurvivesWithNullStructuredFields() = runBlocking {
+    fun legacyRowSurvivesWithNullStructuredAndIdentityFields() = runBlocking {
         context.deleteDatabase(name)
         SQLiteDatabase.openOrCreateDatabase(context.getDatabasePath(name), null).use { db ->
             db.execSQL("CREATE TABLE feedback (localId INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, feedbackId TEXT NOT NULL, score INTEGER NOT NULL, comment TEXT NOT NULL, latitude REAL, longitude REAL, line TEXT, createdAt INTEGER NOT NULL, syncState TEXT NOT NULL)")
@@ -33,7 +33,7 @@ class Migration2To3Test {
         }
 
         val database = Room.databaseBuilder(context, AppDatabase::class.java, name)
-            .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
+            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
             .allowMainThreadQueries()
             .build()
 
@@ -47,6 +47,7 @@ class Migration2To3Test {
         assertNull(row.cleanlinessScore)
         assertNull(row.punctualityScore)
         assertNull(row.createdByUserId)
+        assertNull(row.createdByUsername)
         database.close()
     }
 }

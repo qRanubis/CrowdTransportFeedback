@@ -1,27 +1,25 @@
 package com.example.crowdtransportfeedback.feedback;
 
+import com.example.crowdtransportfeedback.common.ApiException;
 import com.example.crowdtransportfeedback.common.ApiExceptionHandler;
 import com.example.crowdtransportfeedback.security.JwtAuthenticationFilter;
 import com.example.crowdtransportfeedback.security.JwtService;
 import com.example.crowdtransportfeedback.security.SecurityConfig;
+import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import java.util.List;
-import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(FeedbackController.class)
@@ -31,14 +29,9 @@ class FeedbackControllerSecurityTest {
     private static final UUID ADMIN_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
     private static final UUID FEEDBACK_ID = UUID.fromString("33333333-3333-3333-3333-333333333333");
 
-    @Autowired
-    MockMvc mvc;
-
-    @MockBean
-    FeedbackService service;
-
-    @MockBean
-    JwtService jwt;
+    @Autowired MockMvc mvc;
+    @MockBean FeedbackService service;
+    @MockBean JwtService jwt;
 
     @BeforeEach
     void setUp() {
@@ -50,41 +43,46 @@ class FeedbackControllerSecurityTest {
 
     @Test
     void unauthenticatedGetIsRejected() throws Exception {
-        mvc.perform(get("/api/feedback"))
-            .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/feedback")).andExpect(status().isUnauthorized());
     }
 
     @Test
     void userCanGetAndPostFeedback() throws Exception {
         mvc.perform(get("/api/feedback").header("Authorization", "Bearer user-token"))
             .andExpect(status().isOk());
-
-        mvc.perform(
-            post("/api/feedback")
+        mvc.perform(post("/api/feedback")
                 .header("Authorization", "Bearer user-token")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(validJson())
-        ).andExpect(status().isCreated());
+                .content(validJson()))
+            .andExpect(status().isCreated());
     }
 
     @Test
-    void userCannotDeleteFeedback() throws Exception {
-        mvc.perform(
-            delete("/api/feedback/{id}", FEEDBACK_ID)
-                .header("Authorization", "Bearer user-token")
-        ).andExpect(status().isForbidden());
+    void userDeleteDelegatesOwnershipCheckToService() throws Exception {
+        mvc.perform(delete("/api/feedback/{id}", FEEDBACK_ID)
+                .header("Authorization", "Bearer user-token"))
+            .andExpect(status().isNoContent());
+        verify(service).delete(FEEDBACK_ID, USER_ID, "USER");
+    }
 
-        verify(service, never()).delete(FEEDBACK_ID);
+    @Test
+    void serviceCanRejectDeleteForUnrelatedUser() throws Exception {
+        doThrow(new ApiException(
+            HttpStatus.FORBIDDEN,
+            "feedback_delete_forbidden",
+            "Only the author or an administrator can delete this feedback"
+        )).when(service).delete(FEEDBACK_ID, USER_ID, "USER");
+        mvc.perform(delete("/api/feedback/{id}", FEEDBACK_ID)
+                .header("Authorization", "Bearer user-token"))
+            .andExpect(status().isForbidden());
     }
 
     @Test
     void adminCanDeleteFeedback() throws Exception {
-        mvc.perform(
-            delete("/api/feedback/{id}", FEEDBACK_ID)
-                .header("Authorization", "Bearer admin-token")
-        ).andExpect(status().isNoContent());
-
-        verify(service).delete(FEEDBACK_ID);
+        mvc.perform(delete("/api/feedback/{id}", FEEDBACK_ID)
+                .header("Authorization", "Bearer admin-token"))
+            .andExpect(status().isNoContent());
+        verify(service).delete(FEEDBACK_ID, ADMIN_ID, "ADMIN");
     }
 
     @Test
@@ -93,42 +91,28 @@ class FeedbackControllerSecurityTest {
             validJson().replace("\"transportType\":\"BUS\",", ""),
             validJson().replace("\"BUS\"", "\"PLANE\""),
             validJson().replace("\"line\":\"41\"", "\"line\":\"   \""),
-            validJson().replace("\"score\":5", "\"score\":0"),
-            validJson().replace("\"score\":5", "\"score\":6"),
             validJson().replace("\"punctualityScore\":4,", ""),
             validJson().replace("\"cleanlinessScore\":4,", ""),
             validJson().replace("\"crowdingScore\":4,", ""),
+            validJson().replace("\"punctualityScore\":4", "\"punctualityScore\":6"),
             validJson().replace("\"latitude\":44.4268", "\"latitude\":91.0"),
             validJson().replace("\"longitude\":26.1025", "\"longitude\":181.0")
         );
-
         for (String body : invalidRequests) {
-            mvc.perform(
-                post("/api/feedback")
+            mvc.perform(post("/api/feedback")
                     .header("Authorization", "Bearer user-token")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(body)
-            ).andExpect(status().isBadRequest());
+                    .content(body))
+                .andExpect(status().isBadRequest());
         }
-
         verify(service, never()).create(any(), eq(USER_ID));
     }
 
     private static FeedbackDtos.Response response(UUID ownerId) {
         return new FeedbackDtos.Response(
-            FEEDBACK_ID,
-            FEEDBACK_ID.toString(),
-            ownerId,
-            TransportType.BUS,
-            "41",
-            5,
-            4,
-            4,
-            4,
-            "ok",
-            44.4268,
-            26.1025,
-            100L
+            FEEDBACK_ID, FEEDBACK_ID.toString(), ownerId, "user123",
+            TransportType.BUS, "41", 4, 4.0, 4, 4, 4,
+            "ok", 44.4268, 26.1025, 100L
         );
     }
 
@@ -138,7 +122,7 @@ class FeedbackControllerSecurityTest {
               "feedbackId":"33333333-3333-3333-3333-333333333333",
               "transportType":"BUS",
               "line":"41",
-              "score":5,
+              "score":1,
               "punctualityScore":4,
               "cleanlinessScore":4,
               "crowdingScore":4,

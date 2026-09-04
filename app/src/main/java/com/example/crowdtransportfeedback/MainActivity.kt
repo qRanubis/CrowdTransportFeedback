@@ -13,12 +13,10 @@ import com.example.crowdtransportfeedback.ui.viewmodel.FeedbackViewModel
 import com.example.crowdtransportfeedback.ui.viewmodel.FeedbackViewModelFactory
 
 class MainActivity : ComponentActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // build dependencies
         val db = DatabaseProvider.getDatabase(this)
         val app = application as CrowdTransportApplication
         val sessionManager = app.services.network.sessionManager
@@ -27,10 +25,14 @@ class MainActivity : ComponentActivity() {
             api = app.services.network.feedbackApi,
             scheduleSync = app.services.syncScheduler::scheduleOneTime,
             currentUserId = { sessionManager.user()?.id },
+            currentUsername = { sessionManager.user()?.username },
+            currentUserRole = { sessionManager.user()?.role },
             temporaryAuthFailure = sessionManager::hasTemporaryRefreshFailure
         )
         val factory = FeedbackViewModelFactory(repo)
-        val vm: FeedbackViewModel = ViewModelProvider(this, factory)[FeedbackViewModel::class.java]
+        val vm: FeedbackViewModel =
+            ViewModelProvider(this, factory)[FeedbackViewModel::class.java]
+
         setContent {
             CrowdTransportFeedbackTheme {
                 AppNav(

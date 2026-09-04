@@ -14,7 +14,6 @@ import com.example.crowdtransportfeedback.auth.AuthRepository
 import com.example.crowdtransportfeedback.auth.AuthUser
 import com.example.crowdtransportfeedback.auth.SessionManager
 import com.example.crowdtransportfeedback.auth.SessionState
-import com.example.crowdtransportfeedback.auth.canDeleteFeedback
 import com.example.crowdtransportfeedback.ui.screens.AccountBar
 import com.example.crowdtransportfeedback.ui.screens.AddFeedbackScreen
 import com.example.crowdtransportfeedback.ui.screens.AuthScreen
@@ -52,7 +51,12 @@ private fun AuthenticatedNav(
 ) {
     val navController = rememberNavController()
     Column {
-        AccountBar(user.email, user.role.name, sessionManager)
+        AccountBar(
+            username = user.username,
+            email = user.email,
+            role = user.role.name,
+            session = sessionManager
+        )
         NavHost(
             navController = navController,
             startDestination = Routes.LIST,
@@ -61,6 +65,8 @@ private fun AuthenticatedNav(
             composable(Routes.LIST) {
                 FeedbackListScreen(
                     vm = vm,
+                    currentUserId = user.id,
+                    currentUsername = user.username,
                     onAddClick = {
                         vm.resetFeedbackForm()
                         navController.navigate(Routes.ADD)
@@ -68,7 +74,6 @@ private fun AuthenticatedNav(
                     onItemClick = { id -> navController.navigate("${Routes.DETAIL}/$id") }
                 )
             }
-
             composable(Routes.ADD) {
                 AddFeedbackScreen(
                     vm = vm,
@@ -76,7 +81,6 @@ private fun AuthenticatedNav(
                     onCancel = { navController.popBackStack() }
                 )
             }
-
             composable(
                 route = "${Routes.DETAIL}/{id}",
                 arguments = listOf(navArgument("id") { type = NavType.LongType })
@@ -85,7 +89,9 @@ private fun AuthenticatedNav(
                 FeedbackDetailScreen(
                     vm = vm,
                     id = id,
-                    isAdmin = canDeleteFeedback(user.role),
+                    currentUserId = user.id,
+                    currentUsername = user.username,
+                    currentUserRole = user.role,
                     onBack = { navController.popBackStack() }
                 )
             }

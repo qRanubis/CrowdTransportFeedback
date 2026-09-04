@@ -8,12 +8,16 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.example.crowdtransportfeedback.auth.AuthRepository
 import com.example.crowdtransportfeedback.auth.SessionManager
+import com.example.crowdtransportfeedback.auth.isValidEmail
+import com.example.crowdtransportfeedback.auth.isValidUsername
+import com.example.crowdtransportfeedback.auth.registrationPasswordError
 import kotlinx.coroutines.launch
 
 @Composable
 fun AuthScreen(repository: AuthRepository, session: SessionManager) {
     var register by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
@@ -29,27 +33,46 @@ fun AuthScreen(repository: AuthRepository, session: SessionManager) {
             style = MaterialTheme.typography.headlineMedium
         )
         Spacer(Modifier.height(16.dp))
+
         OutlinedTextField(
-            email,
-            { email = it },
+            value = email,
+            onValueChange = { email = it },
             label = { Text("Email") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
             enabled = !loading
         )
+
+        if (register) {
+            OutlinedTextField(
+                value = username,
+                onValueChange = { username = it },
+                label = { Text("Username") },
+                supportingText = { Text("3-20 lowercase letters and digits") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !loading
+            )
+        }
+
         OutlinedTextField(
-            password,
-            { password = it },
+            value = password,
+            onValueChange = { password = it },
             label = { Text("Password") },
             visualTransformation = PasswordVisualTransformation(),
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
             enabled = !loading
         )
+
         if (register) {
+            Text(
+                "Minimum 8 characters, with uppercase, lowercase, digit and symbol.",
+                style = MaterialTheme.typography.bodySmall
+            )
             OutlinedTextField(
-                confirm,
-                { confirm = it },
+                value = confirm,
+                onValueChange = { confirm = it },
                 label = { Text("Confirm password") },
                 visualTransformation = PasswordVisualTransformation(),
                 singleLine = true,
@@ -57,21 +80,31 @@ fun AuthScreen(repository: AuthRepository, session: SessionManager) {
                 enabled = !loading
             )
         }
+
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+
         Button(
             onClick = {
                 error = when {
-                    email.isBlank() -> "Enter your email."
-                    password.length < 8 -> "Password must have at least 8 characters."
+                    !isValidEmail(email) -> "Enter a valid email address."
+                    register && !isValidUsername(username) ->
+                        "Username must be 3-20 characters using only lowercase letters and digits."
+                    password.isBlank() -> "Enter your password."
+                    register && registrationPasswordError(password) != null ->
+                        registrationPasswordError(password)
                     register && password != confirm -> "Passwords do not match."
                     else -> null
                 }
+
                 if (error == null) {
                     loading = true
                     scope.launch {
                         runCatching {
-                            if (register) repository.register(email, password)
-                            else repository.login(email, password)
+                            if (register) {
+                                repository.register(email, username, password)
+                            } else {
+                                repository.login(email, password)
+                            }
                         }.onSuccess {
                             session.authenticated(it)
                         }.onFailure {
@@ -84,12 +117,19 @@ fun AuthScreen(repository: AuthRepository, session: SessionManager) {
             enabled = !loading,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(if (loading) "Please wait…" else if (register) "Create account" else "Login")
+            Text(
+                if (loading) "Please wait…"
+                else if (register) "Create account"
+                else "Login"
+            )
         }
+
         TextButton(
             onClick = {
                 register = !register
                 error = null
+                password = ""
+                confirm = ""
             },
             enabled = !loading
         ) {
@@ -99,16 +139,26 @@ fun AuthScreen(repository: AuthRepository, session: SessionManager) {
 }
 
 @Composable
-fun AccountBar(email: String, role: String, session: SessionManager) {
+fun AccountBar(
+    username: String,
+    email: String,
+    role: String,
+    session: SessionManager
+) {
     val scope = rememberCoroutineScope()
+
     Row(
         Modifier.fillMaxWidth().padding(8.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Column {
-            Text(email)
+            Text(if (username.isBlank()) email else "@$username")
+            if (username.isNotBlank()) {
+                Text(email, style = MaterialTheme.typography.labelSmall)
+            }
             Text(role, style = MaterialTheme.typography.labelSmall)
         }
+
         TextButton(onClick = { scope.launch { session.logout() } }) {
             Text("Logout")
         }

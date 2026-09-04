@@ -15,9 +15,22 @@ import java.io.IOException
 
 class SessionAndNetworkingTest {
     @Test
-    fun `only admin role can expose delete`() {
-        assertFalse(canDeleteFeedback(UserRole.USER))
-        assertTrue(canDeleteFeedback(UserRole.ADMIN))
+    fun `author and admin can expose delete while unrelated user cannot`() {
+        assertTrue(canDeleteFeedback(UserRole.USER, "user-a", "user-a"))
+        assertTrue(canDeleteFeedback(UserRole.ADMIN, "admin", "user-a"))
+        assertFalse(canDeleteFeedback(UserRole.USER, "user-b", "user-a"))
+    }
+
+    @Test
+    fun `registration validation accepts intended identity rules`() {
+        assertTrue(isValidEmail(" User@Example.com "))
+        assertFalse(isValidEmail("user@example"))
+        assertTrue(isValidUsername("user123"))
+        assertFalse(isValidUsername("User_123"))
+        assertNull(registrationPasswordError("Password1!"))
+        assertTrue(registrationPasswordError("password1!") != null)
+        assertTrue(registrationPasswordError("Password!") != null)
+        assertTrue(registrationPasswordError("Password1") != null)
     }
 
     @Test
@@ -50,7 +63,9 @@ class SessionAndNetworkingTest {
                 .addInterceptor(AccessTokenInterceptor(manager))
                 .build()
 
-            client.newCall(okhttp3.Request.Builder().url(server.url("/")).build()).execute().close()
+            client.newCall(
+                okhttp3.Request.Builder().url(server.url("/")).build()
+            ).execute().close()
 
             assertEquals("Bearer access", server.takeRequest().getHeader("Authorization"))
         } finally {
@@ -106,8 +121,8 @@ class SessionAndNetworkingTest {
         var scheduled = 0
         val repository = AuthRepository(api, MemoryTokenStore()) { scheduled++ }
 
-        repository.login("user@example.com", "password123")
-        repository.register("user@example.com", "password123")
+        repository.login("user@example.com", "legacy-password")
+        repository.register("new@example.com", "newuser", "Password1!")
 
         assertEquals(2, scheduled)
     }
@@ -129,15 +144,17 @@ class SessionAndNetworkingTest {
     private fun session() = StoredSession(
         "access",
         "refresh",
-        AuthUser("id", "user@example.com", UserRole.USER)
+        AuthUser("id", "user@example.com", "user123", UserRole.USER)
     )
 }
 
 private class MemoryTokenStore(private var value: StoredSession? = null) : TokenStore {
     override fun read() = value
+
     override fun save(session: StoredSession) {
         value = session
     }
+
     override fun clear() {
         value = null
     }
@@ -154,10 +171,10 @@ private class TestAuthApi(
     private fun authResponse() = AuthResponse(
         accessToken = "new-access",
         refreshToken = "new-refresh",
-        user = AuthUser("id", "user@example.com", UserRole.USER)
+        user = AuthUser("id", "user@example.com", "user123", UserRole.USER)
     )
 
-    override suspend fun register(credentials: Credentials): AuthResponse = authResponse()
+    override suspend fun register(request: RegisterRequest): AuthResponse = authResponse()
 
     override suspend fun login(credentials: Credentials): AuthResponse = authResponse()
 

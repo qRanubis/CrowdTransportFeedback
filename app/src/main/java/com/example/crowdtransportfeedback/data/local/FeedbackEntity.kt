@@ -26,5 +26,19 @@ data class FeedbackEntity(
     val crowdingScore: Int? = null,
     val cleanlinessScore: Int? = null,
     val punctualityScore: Int? = null,
-    val createdByUserId: String? = null
-)
+    val createdByUserId: String? = null,
+    val createdByUsername: String? = null
+) {
+    fun overallRating(): Double {
+        val ratings = listOf(punctualityScore, cleanlinessScore, crowdingScore)
+        return if (ratings.all { it != null }) {
+            ratings.filterNotNull().average()
+        } else {
+            score.toDouble()
+        }
+    }
+
+    fun isVisibleTo(currentUserId: String?): Boolean =
+        syncState == SyncState.SYNCED ||
+            (currentUserId != null && createdByUserId == currentUserId)
+}

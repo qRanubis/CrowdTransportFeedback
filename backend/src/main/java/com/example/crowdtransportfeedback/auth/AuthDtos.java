@@ -1,7 +1,47 @@
 package com.example.crowdtransportfeedback.auth;
-import com.example.crowdtransportfeedback.user.*; import jakarta.validation.constraints.*; import java.util.UUID;
+
+import com.example.crowdtransportfeedback.user.Role;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+import java.util.UUID;
+
 public final class AuthDtos {
- private AuthDtos(){} public record Credentials(@NotBlank @Email String email,@NotBlank @Size(min=8,max=128) String password){}
- public record RefreshRequest(@NotBlank String refreshToken){} public record UserSummary(UUID id,String email,Role role){}
- public record AuthResponse(String accessToken,String refreshToken,UserSummary user){}
+    private static final String EMAIL_PATTERN = "^\\s*[^\\s@]+@[^\\s@]+\\.[^\\s@]+\\s*$";
+    private static final String USERNAME_PATTERN = "^[a-z0-9]{3,20}$";
+    private static final String PASSWORD_PATTERN =
+        "^(?=.{8,128}$)(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9\\s]).*$";
+
+    private AuthDtos() {}
+
+    public record Credentials(
+        @NotBlank
+        @Size(max = 324)
+        @Pattern(regexp = EMAIL_PATTERN, message = "must be a valid email address")
+        String email,
+        @NotBlank @Size(max = 128) String password
+    ) {}
+
+    public record RegisterRequest(
+        @NotBlank
+        @Size(max = 324)
+        @Pattern(regexp = EMAIL_PATTERN, message = "must be a valid email address")
+        String email,
+        @NotBlank
+        @Pattern(regexp = USERNAME_PATTERN, message = "must contain only lowercase letters and digits and be 3-20 characters")
+        String username,
+        @NotBlank
+        @Size(min = 8, max = 128)
+        @Pattern(
+            regexp = PASSWORD_PATTERN,
+            message = "must include lowercase, uppercase, digit and symbol"
+        )
+        String password
+    ) {}
+
+    public record RefreshRequest(@NotBlank String refreshToken) {}
+
+    public record UserSummary(UUID id, String email, String username, Role role) {}
+
+    public record AuthResponse(String accessToken, String refreshToken, UserSummary user) {}
 }

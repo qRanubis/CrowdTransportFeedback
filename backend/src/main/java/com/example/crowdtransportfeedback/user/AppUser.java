@@ -18,6 +18,9 @@ public class AppUser {
     @Column(nullable = false, unique = true, length = 320)
     public String email;
 
+    @Column(nullable = false, unique = true, length = 20)
+    public String username;
+
     @Column(name = "password_hash", nullable = false, length = 100)
     public String passwordHash;
 
@@ -30,15 +33,28 @@ public class AppUser {
 
     protected AppUser() {}
 
-    public AppUser(UUID id, String email, String hash, Role role, Instant at) {
+    public AppUser(UUID id, String email, String username, String hash, Role role, Instant at) {
         this.id = id;
         this.email = email;
+        this.username = username;
         this.passwordHash = hash;
         this.role = role;
         this.createdAt = at;
     }
 
+    public AppUser(UUID id, String email, String hash, Role role, Instant at) {
+        this(id, email, generatedUsername(id), hash, role, at);
+    }
+
     public UUID getId() {
         return id;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    private static String generatedUsername(UUID id) {
+        return "user" + id.toString().replace("-", "").substring(0, 16);
     }
 }

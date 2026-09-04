@@ -4,18 +4,15 @@ import com.example.crowdtransportfeedback.common.ApiException;
 import com.example.crowdtransportfeedback.user.AppUser;
 import com.example.crowdtransportfeedback.user.Role;
 import com.example.crowdtransportfeedback.user.UserRepository;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 class FeedbackServiceTest {
     FeedbackRepository repository = mock(FeedbackRepository.class);
@@ -23,42 +20,34 @@ class FeedbackServiceTest {
     FeedbackService service = new FeedbackService(repository, users);
     UUID owner = UUID.randomUUID();
     UUID id = UUID.randomUUID();
+
     FeedbackDtos.Request request = new FeedbackDtos.Request(
-        id,
-        TransportType.BUS,
-        "123",
-        5,
-        4,
-        3,
-        2,
-        "comment",
-        44.4,
-        26.1,
-        100L
+        id, TransportType.BUS, "123", 1, 4, 3, 2, "comment", 44.4, 26.1, 100L
     );
 
     @BeforeEach
     void setup() {
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(users.getReferenceById(owner)).thenReturn(proxyLikeUser(owner));
+        when(users.getReferenceById(owner)).thenReturn(proxyLikeUser(owner, "owner1"));
     }
 
     @Test
-    void authenticatedUserBecomesOwnerAndGetByIdWorks() {
+    void authenticatedUserBecomesOwnerAndOverallIsServerCalculated() {
         var created = service.create(request, owner);
         assertEquals(owner, created.createdByUserId());
+        assertEquals("owner1", created.createdByUsername());
+        assertEquals(3.0, created.overallRating(), 0.0001);
+        assertEquals(3, created.score());
         verify(repository).save(any());
-
-        var stored = entity(owner);
-        when(repository.findById(id)).thenReturn(Optional.of(stored));
-        assertEquals(id, service.get(id).feedbackId());
-        assertEquals(owner, service.get(id).createdByUserId());
     }
 
     @Test
-    void identicalOwnerRetryIsIdempotent() {
+    void clientLegacyScoreDoesNotAffectIdempotency() {
         when(repository.findById(id)).thenReturn(Optional.of(entity(owner)));
-        assertEquals(id, service.create(request, owner).feedbackId());
+        var differentClientScore = new FeedbackDtos.Request(
+            id, TransportType.BUS, "123", 5, 4, 3, 2, "comment", 44.4, 26.1, 100L
+        );
+        assertEquals(id, service.create(differentClientScore, owner).feedbackId());
         verify(repository, never()).save(any());
     }
 
@@ -69,21 +58,46 @@ class FeedbackServiceTest {
     }
 
     @Test
+    void authorCanDeleteOwnFeedback() {
+        Feedback stored = entity(owner);
+        when(repository.findById(id)).thenReturn(Optional.of(stored));
+        service.delete(id, owner, "USER");
+        verify(repository).delete(stored);
+    }
+
+    @Test
+    void adminCanDeleteAnotherUsersFeedback() {
+        Feedback stored = entity(owner);
+        when(repository.findById(id)).thenReturn(Optional.of(stored));
+        service.delete(id, UUID.randomUUID(), "ADMIN");
+        verify(repository).delete(stored);
+    }
+
+    @Test
+    void unrelatedUserCannotDeleteFeedback() {
+        when(repository.findById(id)).thenReturn(Optional.of(entity(owner)));
+        assertEquals(
+            "feedback_delete_forbidden",
+            assertThrows(ApiException.class, () -> service.delete(id, UUID.randomUUID(), "USER")).code
+        );
+    }
+
+    @Test
     void missingDeleteReturnsNotFound() {
-        when(repository.existsById(id)).thenReturn(false);
+        when(repository.findById(id)).thenReturn(Optional.empty());
         assertEquals(
             "feedback_not_found",
-            assertThrows(ApiException.class, () -> service.delete(id)).code
+            assertThrows(ApiException.class, () -> service.delete(id, owner, "USER")).code
         );
     }
 
     private Feedback entity(UUID userId) {
         Feedback feedback = new Feedback();
         feedback.feedbackId = id;
-        feedback.owner = proxyLikeUser(userId);
+        feedback.owner = proxyLikeUser(userId, "owner1");
         feedback.transportType = TransportType.BUS;
         feedback.line = "123";
-        feedback.score = 5;
+        feedback.score = 3;
         feedback.punctualityScore = 4;
         feedback.cleanlinessScore = 3;
         feedback.crowdingScore = 2;
@@ -94,14 +108,13 @@ class FeedbackServiceTest {
         return feedback;
     }
 
-    private AppUser proxyLikeUser(UUID userId) {
-        AppUser user = new AppUser(userId, "user@example.com", "hash", Role.USER, Instant.now()) {
-            @Override
-            public UUID getId() {
-                return userId;
-            }
+    private AppUser proxyLikeUser(UUID userId, String username) {
+        AppUser user = new AppUser(userId, "user@example.com", username, "hash", Role.USER, Instant.now()) {
+            @Override public UUID getId() { return userId; }
+            @Override public String getUsername() { return username; }
         };
         user.id = null;
+        user.username = null;
         return user;
     }
 }

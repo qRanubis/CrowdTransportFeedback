@@ -2,12 +2,12 @@ package com.example.crowdtransportfeedback.feedback;
 
 import com.example.crowdtransportfeedback.common.ApiException;
 import com.example.crowdtransportfeedback.user.UserRepository;
-import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import static com.example.crowdtransportfeedback.feedback.FeedbackDtos.Request;
 import static com.example.crowdtransportfeedback.feedback.FeedbackDtos.Response;
 
@@ -53,10 +53,14 @@ public class FeedbackService {
         entity.owner = users.getReferenceById(userId);
         entity.transportType = request.transportType();
         entity.line = request.line().trim();
-        entity.score = request.score();
         entity.punctualityScore = request.punctualityScore();
         entity.cleanlinessScore = request.cleanlinessScore();
         entity.crowdingScore = request.crowdingScore();
+        entity.score = roundedOverall(
+            entity.punctualityScore,
+            entity.cleanlinessScore,
+            entity.crowdingScore
+        );
         entity.comment = normalizeComment(request.comment());
         entity.latitude = request.latitude();
         entity.longitude = request.longitude();
@@ -65,17 +69,27 @@ public class FeedbackService {
     }
 
     @Transactional
-    public void delete(UUID id) {
-        if (!feedback.existsById(id)) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "feedback_not_found", "Feedback was not found");
+    public void delete(UUID id, UUID requesterId, String requesterRole) {
+        Feedback entity = feedback.findById(id).orElseThrow(() ->
+            new ApiException(HttpStatus.NOT_FOUND, "feedback_not_found", "Feedback was not found")
+        );
+
+        boolean admin = "ADMIN".equals(requesterRole);
+        boolean owner = entity.owner.getId().equals(requesterId);
+        if (!admin && !owner) {
+            throw new ApiException(
+                HttpStatus.FORBIDDEN,
+                "feedback_delete_forbidden",
+                "Only the author or an administrator can delete this feedback"
+            );
         }
-        feedback.deleteById(id);
+
+        feedback.delete(entity);
     }
 
     private boolean equivalent(Feedback entity, Request request) {
         return entity.transportType == request.transportType()
             && Objects.equals(entity.line, request.line().trim())
-            && entity.score == request.score()
             && entity.punctualityScore == request.punctualityScore()
             && entity.cleanlinessScore == request.cleanlinessScore()
             && entity.crowdingScore == request.crowdingScore()
@@ -91,14 +105,24 @@ public class FeedbackService {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
+    private double overall(int punctuality, int cleanliness, int crowding) {
+        return (punctuality + cleanliness + crowding) / 3.0;
+    }
+
+    private int roundedOverall(int punctuality, int cleanliness, int crowding) {
+        return (int) Math.round(overall(punctuality, cleanliness, crowding));
+    }
+
     private Response out(Feedback entity) {
         return new Response(
             entity.feedbackId,
             entity.feedbackId.toString(),
             entity.owner.getId(),
+            entity.owner.getUsername(),
             entity.transportType,
             entity.line,
             entity.score,
+            overall(entity.punctualityScore, entity.cleanlinessScore, entity.crowdingScore),
             entity.punctualityScore,
             entity.cleanlinessScore,
             entity.crowdingScore,

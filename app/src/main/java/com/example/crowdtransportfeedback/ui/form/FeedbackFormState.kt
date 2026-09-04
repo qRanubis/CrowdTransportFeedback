@@ -14,7 +14,6 @@ sealed interface LocationState {
 }
 
 data class FeedbackFormState(
-    val overallTrust: Int? = null,
     val crowdingScore: Int? = null,
     val cleanlinessScore: Int? = null,
     val punctualityScore: Int? = null,
@@ -25,11 +24,27 @@ data class FeedbackFormState(
     val isSubmitting: Boolean = false,
     val error: String? = null
 ) {
-    val isValid: Boolean get() = listOf(overallTrust, crowdingScore, cleanlinessScore, punctualityScore)
-        .all(::isValidRating) && transportType != null && line != null &&
-        line in BucharestTransitCatalog.linesFor(transportType) && locationState is LocationState.Available
+    val overallRating: Double?
+        get() {
+            val values = listOf(punctualityScore, cleanlinessScore, crowdingScore)
+            return if (values.all(::isValidRating)) {
+                values.filterNotNull().average()
+            } else {
+                null
+            }
+        }
 
-    fun selectTransportType(value: TransportType) = copy(transportType = value, line = null)
+    val isValid: Boolean
+        get() = listOf(crowdingScore, cleanlinessScore, punctualityScore)
+            .all(::isValidRating) &&
+            transportType != null &&
+            line != null &&
+            line in BucharestTransitCatalog.linesFor(transportType) &&
+            locationState is LocationState.Available
+
+    fun selectTransportType(value: TransportType) =
+        copy(transportType = value, line = null)
+
     fun trimmedComment(): String = comment.trim()
 
     fun resetForNewReport(): FeedbackFormState = FeedbackFormState(

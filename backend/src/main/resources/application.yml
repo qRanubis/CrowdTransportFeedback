@@ -18,4 +18,5 @@ app:
   refresh-inactivity: ${REFRESH_SESSION_INACTIVITY:P90D}
   admin:
     email: ${APP_ADMIN_EMAIL:}
+    username: ${APP_ADMIN_USERNAME:admin}
     password: ${APP_ADMIN_PASSWORD:}
