@@ -12,6 +12,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -105,7 +106,7 @@ class FeedbackMigrationTest {
     }
 
     @Test
-    fun migrationFrom1To2PreservesFeedbackAndLegacySyncMeaning() = runBlocking {
+    fun migrationFrom1To4PreservesFeedbackAndLegacySyncMeaning() = runBlocking {
         context.deleteDatabase(databaseName)
         SQLiteDatabase.openOrCreateDatabase(context.getDatabasePath(databaseName), null).use { legacy ->
             legacy.execSQL(
@@ -135,7 +136,7 @@ class FeedbackMigrationTest {
         }
 
         val migrated = Room.databaseBuilder(context, AppDatabase::class.java, databaseName)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
             .allowMainThreadQueries()
             .build()
 
@@ -153,5 +154,7 @@ class FeedbackMigrationTest {
         assertEquals(44.42, rows[0].latitude!!, 0.001)
         assertEquals(26.10, rows[0].longitude!!, 0.001)
         assertEquals(1000L, rows[0].createdAt)
+        assertNull(rows[0].createdByUserId)
+        assertNull(rows[1].createdByUserId)
     }
 }
