@@ -31,12 +31,19 @@ sealed interface SessionState {
     data class Authenticated(val user: AuthUser, val offline: Boolean = false) : SessionState
 }
 
-private val emailRegex = Regex("""^[^\s@]+@[^\s@]+\.[^\s@]+$""")
+private val loginEmailRegex = Regex("""^[^\s@]+@[^\s@]+\.[^\s@]+$""")
+private val registrationEmailRegex = Regex("""^[^\s@]+@[^\s@]+\.[a-z]{2,3}$""")
 private val usernameRegex = Regex("""^[a-z0-9]{3,20}$""")
 
 fun normalizeEmail(value: String): String = value.trim().lowercase()
 
-fun isValidEmail(value: String): Boolean = emailRegex.matches(normalizeEmail(value))
+fun isValidLoginEmail(value: String): Boolean =
+    loginEmailRegex.matches(normalizeEmail(value))
+
+fun isValidRegistrationEmail(value: String): Boolean =
+    registrationEmailRegex.matches(normalizeEmail(value))
+
+fun isValidEmail(value: String): Boolean = isValidRegistrationEmail(value)
 
 fun isValidUsername(value: String): Boolean = usernameRegex.matches(value)
 

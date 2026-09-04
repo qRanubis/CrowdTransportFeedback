@@ -31,7 +31,7 @@ public class Feedback {
     public String line;
 
     @Column(name = "score", nullable = false)
-    public int score;
+    public double score;
 
     @Column(name = "punctuality_score", nullable = false)
     public int punctualityScore;

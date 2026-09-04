@@ -10,7 +10,7 @@ CrowdTransportFeedback is an offline-first Android application backed by one mod
 
 ## Authentication, users, and authorization
 
-Registration always creates a `USER`. Email addresses are normalized with trim + lowercase and validated syntactically on both Android and backend. Registration passwords require at least 8 characters and must contain at least one lowercase letter, one uppercase letter, one digit, and one symbol. Login keeps its own simpler credential validation so registration-strength rules do not invalidate existing accounts.
+Registration always creates a `USER`. Email addresses are normalized with trim + lowercase. New registrations use the project-specific rule that the address must end with a dot followed by exactly 2 or 3 letters, for example `.ro`, `.it`, or `.com`; one-letter and 4+-letter endings are rejected on both Android and backend. Login keeps a broader syntactic email check so existing development accounts such as `.local` remain usable. Registration passwords require at least 8 characters and must contain at least one lowercase letter, one uppercase letter, one digit, and one symbol.
 
 Each account also has a permanent public username chosen at registration. Usernames are unique, 3–20 characters long, and contain only lowercase ASCII letters and digits (`^[a-z0-9]{3,20}$`). Existing development users are backfilled by Flyway migration `V3__add_usernames.sql`. Public feedback displays the username rather than exposing the author email address.
 
@@ -35,7 +35,7 @@ The user no longer enters a separate overall rating. The application derives it 
 
 `overallRating = (punctuality + cleanliness + crowdingComfort) / 3`
 
-The backend independently derives the same value instead of trusting a client-provided overall score. Android displays the calculated value with one decimal place. The legacy integer `score` field is currently retained for compatibility, while the three component ratings remain the source of truth for the displayed overall rating.
+The backend independently derives the same value instead of trusting a client-provided overall score. It rounds the result to one decimal place and stores that decimal value in PostgreSQL `feedback.score` as `DOUBLE PRECISION`, so ratings such as `3.7` are persisted instead of being rounded to integer `4`. Android displays the calculated value with one decimal place. The three component ratings remain the source of truth; the legacy local Room integer `score` is retained only as a compatibility fallback for older local rows.
 
 ## Android sessions and offline behavior
 
@@ -54,6 +54,7 @@ WorkManager keeps the existing unique one-time and periodic jobs, network constr
 - `V1__initial_schema.sql`: creates users, refresh sessions, and feedback tables.
 - `V2__align_feedback_rating_column_types.sql`: aligns feedback rating column types with the JPA model.
 - `V3__add_usernames.sql`: adds permanent unique usernames and safely backfills existing development users.
+- `V4__store_decimal_overall_score.sql`: converts PostgreSQL `feedback.score` to `DOUBLE PRECISION` and recalculates existing scores from the three component ratings to one decimal place.
 
 On Android, Room migration `4 -> 5` adds `createdByUsername` without discarding existing local feedback.
 

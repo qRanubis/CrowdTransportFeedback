@@ -8,7 +8,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.example.crowdtransportfeedback.auth.AuthRepository
 import com.example.crowdtransportfeedback.auth.SessionManager
-import com.example.crowdtransportfeedback.auth.isValidEmail
+import com.example.crowdtransportfeedback.auth.isValidLoginEmail
+import com.example.crowdtransportfeedback.auth.isValidRegistrationEmail
 import com.example.crowdtransportfeedback.auth.isValidUsername
 import com.example.crowdtransportfeedback.auth.registrationPasswordError
 import kotlinx.coroutines.launch
@@ -86,7 +87,9 @@ fun AuthScreen(repository: AuthRepository, session: SessionManager) {
         Button(
             onClick = {
                 error = when {
-                    !isValidEmail(email) -> "Enter a valid email address."
+                    register && !isValidRegistrationEmail(email) ->
+                        "Email must end in a 2-3 letter domain such as .ro, .it or .com."
+                    !register && !isValidLoginEmail(email) -> "Enter a valid email address."
                     register && !isValidUsername(username) ->
                         "Username must be 3-20 characters using only lowercase letters and digits."
                     password.isBlank() -> "Enter your password."

@@ -111,7 +111,7 @@ class FeedbackControllerSecurityTest {
     private static FeedbackDtos.Response response(UUID ownerId) {
         return new FeedbackDtos.Response(
             FEEDBACK_ID, FEEDBACK_ID.toString(), ownerId, "user123",
-            TransportType.BUS, "41", 4, 4.0, 4, 4, 4,
+            TransportType.BUS, "41", 4.0, 4.0, 4, 4, 4,
             "ok", 44.4268, 26.1025, 100L
         );
     }
@@ -122,7 +122,7 @@ class FeedbackControllerSecurityTest {
               "feedbackId":"33333333-3333-3333-3333-333333333333",
               "transportType":"BUS",
               "line":"41",
-              "score":1,
+              "score":1.0,
               "punctualityScore":4,
               "cleanlinessScore":4,
               "crowdingScore":4,

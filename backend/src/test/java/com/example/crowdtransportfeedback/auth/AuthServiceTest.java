@@ -4,6 +4,7 @@ import com.example.crowdtransportfeedback.common.ApiException;
 import com.example.crowdtransportfeedback.security.JwtProperties;
 import com.example.crowdtransportfeedback.security.JwtService;
 import com.example.crowdtransportfeedback.user.*;
+import jakarta.validation.Validation;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
@@ -48,6 +49,31 @@ class AuthServiceTest {
         assertNotEquals("Password123!", captor.getValue().passwordHash);
         assertTrue(encoder.matches("Password123!", captor.getValue().passwordHash));
         assertEquals("user123", response.user().username());
+    }
+
+    @Test
+    void registrationEmailRequiresTwoOrThreeLetterTldWithoutBreakingLegacyLogin() {
+        var validator = Validation.buildDefaultValidatorFactory().getValidator();
+
+        assertTrue(validator.validate(
+            new AuthDtos.RegisterRequest("user@example.com", "user123", "Password123!")
+        ).isEmpty());
+        assertTrue(validator.validate(
+            new AuthDtos.RegisterRequest("user@example.ro", "user123", "Password123!")
+        ).isEmpty());
+        assertFalse(validator.validate(
+            new AuthDtos.RegisterRequest("user@example.c", "user123", "Password123!")
+        ).isEmpty());
+        assertFalse(validator.validate(
+            new AuthDtos.RegisterRequest("user@example.info", "user123", "Password123!")
+        ).isEmpty());
+        assertFalse(validator.validate(
+            new AuthDtos.RegisterRequest("user@example.12", "user123", "Password123!")
+        ).isEmpty());
+
+        assertTrue(validator.validate(
+            new AuthDtos.Credentials("user@test.local", "legacy-password")
+        ).isEmpty());
     }
 
     @Test

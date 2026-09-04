@@ -1,17 +1,17 @@
 package com.example.crowdtransportfeedback.auth
 
+import java.io.IOException
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
+import okhttp3.ResponseBody.Companion.toResponseBody
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
-import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import retrofit2.Response
-import java.io.IOException
 
 class SessionAndNetworkingTest {
     @Test
@@ -22,9 +22,15 @@ class SessionAndNetworkingTest {
     }
 
     @Test
-    fun `registration validation accepts intended identity rules`() {
-        assertTrue(isValidEmail(" User@Example.com "))
-        assertFalse(isValidEmail("user@example"))
+    fun `registration email requires a two or three letter tld`() {
+        assertTrue(isValidRegistrationEmail(" User@Example.com "))
+        assertTrue(isValidRegistrationEmail("user@example.ro"))
+        assertTrue(isValidRegistrationEmail("user@example.it"))
+        assertFalse(isValidRegistrationEmail("user@example.c"))
+        assertFalse(isValidRegistrationEmail("user@example.info"))
+        assertFalse(isValidRegistrationEmail("user@example.12"))
+        assertTrue(isValidLoginEmail("user@test.local"))
+
         assertTrue(isValidUsername("user123"))
         assertFalse(isValidUsername("User_123"))
         assertNull(registrationPasswordError("Password1!"))

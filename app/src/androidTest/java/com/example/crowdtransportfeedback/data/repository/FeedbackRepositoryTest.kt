@@ -9,6 +9,7 @@ import com.example.crowdtransportfeedback.data.local.SyncState
 import com.example.crowdtransportfeedback.data.remote.FeedbackApi
 import com.example.crowdtransportfeedback.data.remote.FeedbackDto
 import com.example.crowdtransportfeedback.data.remote.toEntity
+import java.io.IOException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -26,7 +27,6 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import retrofit2.Response
-import java.io.IOException
 
 @RunWith(AndroidJUnit4::class)
 class FeedbackRepositoryTest {
@@ -193,7 +193,6 @@ class FeedbackRepositoryTest {
         val localId = database.feedbackDao().insert(feedback("same-id", comment = "pending local"))
         api.remote = listOf(feedbackDto("same-id", "remote copy", USER_A))
 
-        // Test reconciliation directly because a full pass intentionally uploads pending creates first.
         database.feedbackDao().reconcileRemote(api.getAll().map { it.toEntity() })
 
         val stored = repository.getById(localId).first()
@@ -261,7 +260,7 @@ class FeedbackRepositoryTest {
         createdByUserId: String
     ) = FeedbackDto(
         id = feedbackId,
-        score = 3,
+        score = 3.0,
         comment = comment,
         line = "41",
         createdAt = 1_700_000_000_100,

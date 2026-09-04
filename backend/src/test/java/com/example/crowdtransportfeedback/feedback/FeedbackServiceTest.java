@@ -22,7 +22,7 @@ class FeedbackServiceTest {
     UUID id = UUID.randomUUID();
 
     FeedbackDtos.Request request = new FeedbackDtos.Request(
-        id, TransportType.BUS, "123", 1, 4, 3, 2, "comment", 44.4, 26.1, 100L
+        id, TransportType.BUS, "123", 1.0, 5, 4, 2, "comment", 44.4, 26.1, 100L
     );
 
     @BeforeEach
@@ -32,12 +32,12 @@ class FeedbackServiceTest {
     }
 
     @Test
-    void authenticatedUserBecomesOwnerAndOverallIsServerCalculated() {
+    void authenticatedUserBecomesOwnerAndOverallIsStoredWithOneDecimal() {
         var created = service.create(request, owner);
         assertEquals(owner, created.createdByUserId());
         assertEquals("owner1", created.createdByUsername());
-        assertEquals(3.0, created.overallRating(), 0.0001);
-        assertEquals(3, created.score());
+        assertEquals(3.7, created.overallRating(), 0.0001);
+        assertEquals(3.7, created.score(), 0.0001);
         verify(repository).save(any());
     }
 
@@ -45,7 +45,7 @@ class FeedbackServiceTest {
     void clientLegacyScoreDoesNotAffectIdempotency() {
         when(repository.findById(id)).thenReturn(Optional.of(entity(owner)));
         var differentClientScore = new FeedbackDtos.Request(
-            id, TransportType.BUS, "123", 5, 4, 3, 2, "comment", 44.4, 26.1, 100L
+            id, TransportType.BUS, "123", 5.0, 5, 4, 2, "comment", 44.4, 26.1, 100L
         );
         assertEquals(id, service.create(differentClientScore, owner).feedbackId());
         verify(repository, never()).save(any());
@@ -97,9 +97,9 @@ class FeedbackServiceTest {
         feedback.owner = proxyLikeUser(userId, "owner1");
         feedback.transportType = TransportType.BUS;
         feedback.line = "123";
-        feedback.score = 3;
-        feedback.punctualityScore = 4;
-        feedback.cleanlinessScore = 3;
+        feedback.score = 3.7;
+        feedback.punctualityScore = 5;
+        feedback.cleanlinessScore = 4;
         feedback.crowdingScore = 2;
         feedback.comment = "comment";
         feedback.latitude = 44.4;

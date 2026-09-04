@@ -56,7 +56,7 @@ public class FeedbackService {
         entity.punctualityScore = request.punctualityScore();
         entity.cleanlinessScore = request.cleanlinessScore();
         entity.crowdingScore = request.crowdingScore();
-        entity.score = roundedOverall(
+        entity.score = overall(
             entity.punctualityScore,
             entity.cleanlinessScore,
             entity.crowdingScore
@@ -106,11 +106,8 @@ public class FeedbackService {
     }
 
     private double overall(int punctuality, int cleanliness, int crowding) {
-        return (punctuality + cleanliness + crowding) / 3.0;
-    }
-
-    private int roundedOverall(int punctuality, int cleanliness, int crowding) {
-        return (int) Math.round(overall(punctuality, cleanliness, crowding));
+        double average = (punctuality + cleanliness + crowding) / 3.0;
+        return Math.round(average * 10.0) / 10.0;
     }
 
     private Response out(Feedback entity) {
@@ -122,7 +119,7 @@ public class FeedbackService {
             entity.transportType,
             entity.line,
             entity.score,
-            overall(entity.punctualityScore, entity.cleanlinessScore, entity.crowdingScore),
+            entity.score,
             entity.punctualityScore,
             entity.cleanlinessScore,
             entity.crowdingScore,
