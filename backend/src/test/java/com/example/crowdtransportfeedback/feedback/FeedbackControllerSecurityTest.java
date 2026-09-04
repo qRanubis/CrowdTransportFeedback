@@ -110,9 +110,9 @@ class FeedbackControllerSecurityTest {
 
     private static FeedbackDtos.Response response(UUID ownerId) {
         return new FeedbackDtos.Response(
-            FEEDBACK_ID, FEEDBACK_ID.toString(), ownerId, "user123",
+            FEEDBACK_ID, FEEDBACK_ID.toString(), ownerId, "user123", "COMMUTER",
             TransportType.BUS, "41", 4.0, 4.0, 4, 4, 4,
-            "ok", 44.4268, 26.1025, 100L
+            "ok", 44.4268, 26.1025, 100L, 0, java.util.List.of()
         );
     }
 

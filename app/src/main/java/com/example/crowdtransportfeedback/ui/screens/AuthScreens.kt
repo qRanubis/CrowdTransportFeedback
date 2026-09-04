@@ -1,6 +1,7 @@
 package com.example.crowdtransportfeedback.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -146,7 +147,8 @@ fun AccountBar(
     username: String,
     email: String,
     role: String,
-    session: SessionManager
+    session: SessionManager,
+    onProfile: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
 
@@ -154,7 +156,7 @@ fun AccountBar(
         Modifier.fillMaxWidth().padding(8.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Column {
+        Column(Modifier.clickable(onClick = onProfile)) {
             Text(if (username.isBlank()) email else "@$username")
             if (username.isNotBlank()) {
                 Text(email, style = MaterialTheme.typography.labelSmall)

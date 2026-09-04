@@ -16,5 +16,8 @@ data class FeedbackDto(
     val punctualityScore: Int? = null,
     val createdByUserId: String? = null,
     val createdByUsername: String? = null,
-    val overallRating: Double? = null
+    val overallRating: Double? = null,
+    val createdByAvatarKey: String? = null,
+    val xpAwarded: Int = 0,
+    val newAchievements: List<String> = emptyList()
 )

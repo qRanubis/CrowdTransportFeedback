@@ -1,10 +1,10 @@
-# CrowdTransportFeedback — Milestone 4
+# CrowdTransportFeedback — Milestone 5
 
 CrowdTransportFeedback is an offline-first Android application backed by one modular Spring Boot monolith. Android persists feedback in Room and synchronizes it through WorkManager; the backend owns authentication, authorization, feedback ownership, validation, and PostgreSQL persistence.
 
 ## Architecture
 
-- `app/`: Kotlin/Jetpack Compose Android client. Room schema **version 5** retains distributed `feedbackId` UUIDs, local-only `localId`, tombstones, and `PENDING_DELETE -> PENDING_CREATE -> reconciliation` synchronization. Authenticated local feedback stores nullable `createdByUserId` and `createdByUsername` provenance.
+- `app/`: Kotlin/Jetpack Compose Android client. Room schema **version 6** retains distributed `feedbackId` UUIDs, local-only `localId`, tombstones, and chronological pending synchronization. Authenticated local feedback stores nullable author identity/avatar provenance and creator-scoped permanent rejection details.
 - `backend/`: Java 21, Maven, Spring Boot, Web, Security, Data JPA, Validation, Flyway, Actuator, JJWT, and PostgreSQL. It remains one modular monolith with `auth`, `security`, `user`, `feedback`, and `common` packages, not microservices.
 - `docker-compose.yml`: PostgreSQL runs on host port 5434 and the backend on port 8080, with a persistent named database volume.
 
@@ -75,3 +75,20 @@ json-server is no longer in the normal path. Prototype records have no authentic
 Backend verification uses `./mvnw test` and `./mvnw package` from `backend/`. Android verification uses `./gradlew testDebugUnitTest`, `./gradlew lintDebug`, `./gradlew assembleDebug`, and `./gradlew connectedDebugAndroidTest` from the project root, with an emulator required for connected tests.
 
 Milestone 4 manual integration testing also covers registration and username persistence, automatic login after registration, PostgreSQL ownership, calculated overall rating, offline logout, account-isolated pending feedback, synchronization when the creator returns, author delete, non-owner delete denial, and ADMIN delete visibility/authorization.
+# Milestone 5: profiles and gamification
+
+Milestone 5 adds authenticated **My Profile** and username-addressed public profiles, three neutral built-in avatars (`COMMUTER`, `NAVIGATOR`, and `EXPLORER`), achievements, and one leaderboard screen with XP/Achievements/Contributions metrics and All Time/This Month periods. Public responses intentionally omit email and security/session data. Leaderboards return at most 100 rows plus a separate current-user rank (monthly zero values are unranked).
+
+Gamification is server authoritative. Accepted feedback awards 10 XP; the lifetime first contribution and first transport type bonuses award 40 XP each, and a lifetime first `transportType + normalized line` bonus awards 30 XP. The immutable event ledger and database uniqueness constraint make retries idempotent. Deletion creates at most one -10 XP reversal; first-time bonuses and unlocked achievements remain permanent. The ledger is deliberately source-based so a future `REPORT_ACCEPTED` event can be introduced without changing its model.
+
+Levels are derived, never client supplied: Passenger (0), Contributor (100), Observer (225), Explorer (375), Route Explorer (550), Network Explorer (775), Navigator (1050), City Navigator (1375), Transit Mapper (1750), Network Mapper (2175), Mobility Analyst (2650), Senior Mapper (3175), Transit Specialist (3750), Network Specialist (4375), and Urban Mobility Expert (5000). Level 15 is the maximum, but XP remains uncapped.
+
+The exact 28-achievement catalog is grouped into Contribution (7), Network Exploration (5), Transport (10), and UTC-day Consistency (6). The API supplies progress and unlock timestamps; achievements grant no XP and remain unlocked after deletion. Users may pin zero to three distinct unlocked badges in a persisted order.
+
+The backend and local store enforce a canonicalized 30-minute per-user, per-transport/line cooldown. Pending records participate locally. A server cooldown conflict becomes a creator-visible `REJECTED` row with `feedback_cooldown`, rather than an endless WorkManager retry. Pending rows never alter authoritative profile XP. Profile/leaderboard requests show server data and a clear unavailable state when offline.
+
+M5 endpoints (all authenticated) are `GET /api/profile/me`, `GET /api/profile/{username}`, `GET /api/profile/me/achievements`, `PATCH /api/profile/me/avatar`, `PUT /api/profile/me/pinned-achievements`, and `GET /api/leaderboard?metric=XP&period=ALL_TIME&limit=100`. Feedback responses additionally carry the author's avatar plus server-awarded XP/new-achievement metadata.
+
+Flyway `V5__profiles_and_gamification.sql` non-destructively adds avatars, canonical lines, the event ledger, permanent unlocks, ordered pins, indexes, constraints, and an idempotent historical XP backfill using original timestamps. Startup idempotently evaluates achievements for existing feedback. Room is version 6; `MIGRATION_5_6` preserves rows while adding author avatar and permanent-rejection reason columns.
+
+Verification commands: `cd backend && ./mvnw test && ./mvnw package`; from the repository root run `./gradlew testDebugUnitTest lintDebug assembleDebug connectedDebugAndroidTest`, then `docker compose up --build -d`, `docker compose ps`, and check `http://localhost:8080/actuator/health`.

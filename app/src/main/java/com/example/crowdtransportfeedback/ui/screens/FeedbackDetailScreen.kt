@@ -1,6 +1,7 @@
 package com.example.crowdtransportfeedback.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -19,7 +20,8 @@ fun FeedbackDetailScreen(
     currentUserId: String,
     currentUsername: String,
     currentUserRole: UserRole,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onAuthor: (String) -> Unit = {}
 ) {
     val item by vm.getFeedbackById(id).collectAsState(initial = null)
     var isDeleting by rememberSaveable(id) { mutableStateOf(false) }
@@ -44,7 +46,7 @@ fun FeedbackDetailScreen(
 
             val author = current.createdByUsername?.takeIf { it.isNotBlank() }
                 ?: if (current.createdByUserId == currentUserId) currentUsername.takeIf { it.isNotBlank() } else null
-            Text("Author: ${author?.let { "@$it" } ?: "Not available"}")
+            Text("${avatarSymbol(current.createdByAvatarKey ?: "COMMUTER")} Author: ${author?.let { "@$it  ›" } ?: "Not available"}", Modifier.clickable(enabled=author!=null){author?.let(onAuthor)})
             Text("Comment: ${current.comment.ifBlank { "Not available" }}")
             Text("Latitude / longitude: ${current.latitude ?: "Not available"} / ${current.longitude ?: "Not available"}")
             Text("Sync status: ${current.syncState.displayName}")
@@ -75,4 +77,5 @@ private val SyncState.displayName: String
         SyncState.PENDING_CREATE -> "Pending"
         SyncState.SYNCED -> "Synchronized"
         SyncState.PENDING_DELETE -> "Pending deletion"
+        SyncState.REJECTED -> "Rejected: feedback cooldown"
     }

@@ -1,0 +1,4 @@
+package com.example.crowdtransportfeedback.gamification;
+import com.example.crowdtransportfeedback.user.UserRepository; import java.time.Instant; import org.springframework.boot.ApplicationArguments; import org.springframework.boot.ApplicationRunner; import org.springframework.stereotype.Component; import org.springframework.transaction.annotation.Transactional;
+/** Idempotently evaluates permanent badges after Flyway has backfilled historical XP. */
+@Component public class GamificationBackfill implements ApplicationRunner {private final UserRepository users;private final GamificationService service;public GamificationBackfill(UserRepository u,GamificationService s){users=u;service=s;} @Override @Transactional public void run(ApplicationArguments args){users.findAll().forEach(u->service.evaluate(u,Instant.now()));}}

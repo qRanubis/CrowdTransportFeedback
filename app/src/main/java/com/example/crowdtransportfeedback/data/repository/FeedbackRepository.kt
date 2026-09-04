@@ -30,6 +30,7 @@ class FeedbackRepository(
 
     suspend fun addFeedback(item: FeedbackEntity): Long {
         val creator = requireAuthenticatedCreator()
+        enforceLocalCooldown(item, creator)
         val id = dao.insert(
             item.copy(
                 syncState = SyncState.PENDING_CREATE,
@@ -97,6 +98,7 @@ class FeedbackRepository(
 
     suspend fun addFeedbackAndUpload(item: FeedbackEntity): Long {
         val creator = requireAuthenticatedCreator()
+        enforceLocalCooldown(item, creator)
         val username = currentUsername()?.takeIf { it.isNotBlank() }
         val localId = dao.insert(
             item.copy(
@@ -147,6 +149,7 @@ class FeedbackRepository(
         } catch (error: Exception) {
             when {
                 error.isTransient() || error.isTemporaryAuthenticationFailure() -> Attempt.TRANSIENT_FAILURE
+                error is HttpException && error.code() == 409 -> { dao.reject(item.localId, "feedback_cooldown"); Attempt.PERMANENT_FAILURE }
                 error is HttpException -> Attempt.PERMANENT_FAILURE
                 else -> throw error
             }
@@ -201,6 +204,14 @@ class FeedbackRepository(
     private fun requireAuthenticatedCreator(): String =
         currentUserId()?.takeIf { it.isNotBlank() }
             ?: throw IllegalStateException("An authenticated user is required to create feedback")
+
+    private suspend fun enforceLocalCooldown(item: FeedbackEntity, userId: String) {
+        val type = item.transportType?.name ?: return
+        val line = item.line?.trim()?.replace(Regex("\\s+"), " ")?.uppercase() ?: return
+        if (dao.cooldownCount(userId, type, line, item.createdAt - 30 * 60 * 1000, item.createdAt) > 0) {
+            throw IllegalArgumentException("feedback_cooldown")
+        }
+    }
 
     private enum class Attempt { SUCCESS, TRANSIENT_FAILURE, PERMANENT_FAILURE, BLOCKED }
 

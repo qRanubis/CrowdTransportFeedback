@@ -36,6 +36,12 @@ interface FeedbackDao {
     @Query("UPDATE feedback SET syncState = :syncState WHERE localId = :localId")
     suspend fun setSyncState(localId: Long, syncState: SyncState)
 
+    @Query("UPDATE feedback SET syncState = 'REJECTED', rejectionReason = :reason WHERE localId = :localId")
+    suspend fun reject(localId: Long, reason: String)
+
+    @Query("SELECT count(*) FROM feedback WHERE createdByUserId=:userId AND transportType=:type AND upper(trim(line))=:line AND createdAt>:after AND createdAt<=:at AND syncState != 'PENDING_DELETE'")
+    suspend fun cooldownCount(userId:String,type:String,line:String,after:Long,at:Long):Int
+
     @Query(
         """
         UPDATE feedback SET
@@ -51,6 +57,7 @@ interface FeedbackDao {
             punctualityScore = :punctualityScore,
             createdByUserId = :createdByUserId,
             createdByUsername = :createdByUsername
+            ,createdByAvatarKey = :createdByAvatarKey
         WHERE feedbackId = :feedbackId AND syncState = 'SYNCED'
         """
     )
@@ -67,7 +74,8 @@ interface FeedbackDao {
         cleanlinessScore: Int?,
         punctualityScore: Int?,
         createdByUserId: String?,
-        createdByUsername: String?
+        createdByUsername: String?,
+        createdByAvatarKey: String?
     ): Int
 
     @Query("DELETE FROM feedback WHERE syncState = 'SYNCED'")
@@ -99,6 +107,7 @@ interface FeedbackDao {
                 punctualityScore = item.punctualityScore,
                 createdByUserId = item.createdByUserId,
                 createdByUsername = item.createdByUsername
+                ,createdByAvatarKey = item.createdByAvatarKey
             )
             if (updated == 0) {
                 insertRemote(item)

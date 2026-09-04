@@ -4,6 +4,7 @@ import com.example.crowdtransportfeedback.common.ApiException;
 import com.example.crowdtransportfeedback.user.AppUser;
 import com.example.crowdtransportfeedback.user.Role;
 import com.example.crowdtransportfeedback.user.UserRepository;
+import com.example.crowdtransportfeedback.gamification.GamificationService;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -17,7 +18,8 @@ import static org.mockito.Mockito.*;
 class FeedbackServiceTest {
     FeedbackRepository repository = mock(FeedbackRepository.class);
     UserRepository users = mock(UserRepository.class);
-    FeedbackService service = new FeedbackService(repository, users);
+    GamificationService gamification = mock(GamificationService.class);
+    FeedbackService service = new FeedbackService(repository, users, gamification);
     UUID owner = UUID.randomUUID();
     UUID id = UUID.randomUUID();
 
@@ -29,6 +31,7 @@ class FeedbackServiceTest {
     void setup() {
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(users.getReferenceById(owner)).thenReturn(proxyLikeUser(owner, "owner1"));
+        when(gamification.award(any(), any())).thenReturn(new GamificationService.Award(0, java.util.List.of()));
     }
 
     @Test

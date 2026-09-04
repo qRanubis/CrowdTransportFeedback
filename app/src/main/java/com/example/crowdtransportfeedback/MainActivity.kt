@@ -38,7 +38,8 @@ class MainActivity : ComponentActivity() {
                 AppNav(
                     vm = vm,
                     authRepository = app.services.authRepository,
-                    sessionManager = sessionManager
+                    sessionManager = sessionManager,
+                    profileApi = app.services.network.profileApi
                 )
             }
         }
