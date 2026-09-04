@@ -21,6 +21,7 @@ import com.example.crowdtransportfeedback.location.AndroidLocationProvider
 import com.example.crowdtransportfeedback.ui.form.FeedbackFormState
 import com.example.crowdtransportfeedback.ui.form.LocationState
 import com.example.crowdtransportfeedback.ui.viewmodel.FeedbackViewModel
+import java.util.Locale
 
 @Composable
 fun AddFeedbackScreen(vm: FeedbackViewModel, onSaved: () -> Unit, onCancel: () -> Unit) {
@@ -81,16 +82,34 @@ fun AddFeedbackScreen(vm: FeedbackViewModel, onSaved: () -> Unit, onCancel: () -
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
         Text("Add feedback", style = MaterialTheme.typography.titleLarge)
-        RatingSelector("Overall trust", "1 = Very low", "5 = Very high", state.overallTrust, vm::setOverall)
-        RatingSelector("Crowding comfort", "1 = Extremely crowded", "5 = Plenty of space", state.crowdingScore, vm::setCrowding)
-        RatingSelector("Cleanliness", "1 = Very dirty", "5 = Very clean", state.cleanlinessScore, vm::setCleanliness)
-        RatingSelector("Punctuality", "1 = Very poor", "5 = Very good", state.punctualityScore, vm::setPunctuality)
-        Selector("Transport type", state.transportType?.displayName ?: "Select transport type", TransportType.entries.map { it.displayName }) { label ->
+
+        Selector(
+            "Transport type",
+            state.transportType?.displayName ?: "Select transport type",
+            TransportType.entries.map { it.displayName }
+        ) { label ->
             vm.setTransportType(TransportType.entries.first { it.displayName == label })
         }
+
         val type = state.transportType
-        SearchableLineSelector(state, type?.let(BucharestTransitCatalog::linesFor).orEmpty(), vm::setLine)
-        OutlinedTextField(state.comment, vm::setComment, label = { Text("Comment (optional)") }, modifier = Modifier.fillMaxWidth().height(120.dp))
+        SearchableLineSelector(
+            state = state,
+            choices = type?.let(BucharestTransitCatalog::linesFor).orEmpty(),
+            onSelect = vm::setLine
+        )
+
+        RatingSelector("Punctuality", "1 = Very poor", "5 = Very good", state.punctualityScore, vm::setPunctuality)
+        RatingSelector("Cleanliness", "1 = Very dirty", "5 = Very clean", state.cleanlinessScore, vm::setCleanliness)
+        RatingSelector("Crowding comfort", "1 = Extremely crowded", "5 = Plenty of space", state.crowdingScore, vm::setCrowding)
+        RatingSelector("Overall trust", "1 = Very low", "5 = Very high", state.overallTrust, vm::setOverall)
+
+        OutlinedTextField(
+            state.comment,
+            vm::setComment,
+            label = { Text("Comment (optional)") },
+            modifier = Modifier.fillMaxWidth().height(120.dp)
+        )
+
         Spacer(Modifier.height(12.dp))
         Text("Location", style = MaterialTheme.typography.labelLarge)
         Text(locationMessage(state.locationState))
@@ -100,7 +119,9 @@ fun AddFeedbackScreen(vm: FeedbackViewModel, onSaved: () -> Unit, onCancel: () -
         ) {
             Text(if (hasPermission()) "Retry location" else "Allow location")
         }
+
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+
         Row {
             Button(
                 onClick = {
@@ -120,6 +141,7 @@ fun AddFeedbackScreen(vm: FeedbackViewModel, onSaved: () -> Unit, onCancel: () -
                 Text("Cancel")
             }
         }
+
         if (!state.isValid) {
             Text("All ratings, transport type, line, and location are required.", style = MaterialTheme.typography.bodySmall)
         }
@@ -156,32 +178,74 @@ private fun Selector(label: String, value: String, choices: List<String>, onSele
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SearchableLineSelector(state: FeedbackFormState, choices: List<String>, onSelect: (String) -> Unit) {
+private fun SearchableLineSelector(
+    state: FeedbackFormState,
+    choices: List<String>,
+    onSelect: (String) -> Unit
+) {
     var expanded by remember { mutableStateOf(false) }
     var query by remember(state.transportType) { mutableStateOf("") }
+
     Spacer(Modifier.height(12.dp))
     Text("Line", style = MaterialTheme.typography.labelLarge)
-    OutlinedButton(
-        { if (state.transportType != null) expanded = true },
-        Modifier.fillMaxWidth(),
-        enabled = state.transportType != null
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = {
+            if (state.transportType != null && !state.isSubmitting) {
+                expanded = !expanded
+            }
+        }
     ) {
-        Text(state.line ?: "Select line")
-    }
-    DropdownMenu(expanded, { expanded = false }) {
-        OutlinedTextField(query, { query = it }, label = { Text("Filter lines") }, modifier = Modifier.padding(8.dp))
-        choices.filter { it.contains(query, ignoreCase = true) }.take(20).forEach { line ->
-            DropdownMenuItem({ Text(line) }, { onSelect(line); expanded = false })
+        OutlinedTextField(
+            value = state.line ?: "",
+            onValueChange = {},
+            readOnly = true,
+            placeholder = { Text("Select line") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier.menuAnchor().fillMaxWidth(),
+            enabled = state.transportType != null && !state.isSubmitting
+        )
+
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.heightIn(max = 360.dp)
+        ) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                label = { Text("Filter lines") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)
+            )
+
+            filterLines(choices, query).forEach { line ->
+                DropdownMenuItem(
+                    text = { Text(line) },
+                    onClick = {
+                        onSelect(line)
+                        query = ""
+                        expanded = false
+                    }
+                )
+            }
         }
     }
 }
 
-private fun locationMessage(state: LocationState) = when (state) {
+internal fun filterLines(choices: List<String>, query: String): List<String> {
+    val normalized = query.trim()
+    return if (normalized.isEmpty()) choices else choices.filter { it.startsWith(normalized, ignoreCase = true) }
+}
+
+internal fun locationMessage(state: LocationState): String = when (state) {
     LocationState.Idle, LocationState.PermissionRequired -> "Location permission required"
     LocationState.RequestingPermission -> "Requesting location permission..."
     LocationState.Loading -> "Getting location..."
-    is LocationState.Available -> "Location available"
+    is LocationState.Available -> String.format(Locale.US, "%.5f, %.5f", state.latitude, state.longitude)
     LocationState.PermissionDenied -> "Location permission denied"
     LocationState.Error -> "Unable to get location"
 }
