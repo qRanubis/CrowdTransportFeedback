@@ -40,9 +40,7 @@ class FeedbackServiceTest {
     @BeforeEach
     void setup() {
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(users.getReferenceById(owner)).thenReturn(
-            new AppUser(owner, "user@example.com", "hash", Role.USER, Instant.now())
-        );
+        when(users.getReferenceById(owner)).thenReturn(proxyLikeUser(owner));
     }
 
     @Test
@@ -54,6 +52,7 @@ class FeedbackServiceTest {
         var stored = entity(owner);
         when(repository.findById(id)).thenReturn(Optional.of(stored));
         assertEquals(id, service.get(id).feedbackId());
+        assertEquals(owner, service.get(id).createdByUserId());
     }
 
     @Test
@@ -81,7 +80,7 @@ class FeedbackServiceTest {
     private Feedback entity(UUID userId) {
         Feedback feedback = new Feedback();
         feedback.feedbackId = id;
-        feedback.owner = new AppUser(userId, "user@example.com", "hash", Role.USER, Instant.now());
+        feedback.owner = proxyLikeUser(userId);
         feedback.transportType = TransportType.BUS;
         feedback.line = "123";
         feedback.score = 5;
@@ -93,5 +92,16 @@ class FeedbackServiceTest {
         feedback.longitude = 26.1;
         feedback.createdAt = 100L;
         return feedback;
+    }
+
+    private AppUser proxyLikeUser(UUID userId) {
+        AppUser user = new AppUser(userId, "user@example.com", "hash", Role.USER, Instant.now()) {
+            @Override
+            public UUID getId() {
+                return userId;
+            }
+        };
+        user.id = null;
+        return user;
     }
 }
