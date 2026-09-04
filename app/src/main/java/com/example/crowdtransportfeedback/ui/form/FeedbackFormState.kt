@@ -31,6 +31,14 @@ data class FeedbackFormState(
 
     fun selectTransportType(value: TransportType) = copy(transportType = value, line = null)
     fun trimmedComment(): String = comment.trim()
+
+    fun resetForNewReport(): FeedbackFormState = FeedbackFormState(
+        locationState = if (locationState is LocationState.PermissionDenied) {
+            LocationState.PermissionDenied
+        } else {
+            LocationState.Idle
+        }
+    )
 }
 
 fun isValidRating(value: Int?): Boolean = value != null && value in 1..5
