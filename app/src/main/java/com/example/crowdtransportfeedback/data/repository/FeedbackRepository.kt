@@ -7,11 +7,16 @@ import com.example.crowdtransportfeedback.data.remote.FeedbackApi
 import com.example.crowdtransportfeedback.data.remote.toDto
 import com.example.crowdtransportfeedback.data.remote.toEntity
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import retrofit2.HttpException
 import java.io.IOException
 
 /** The result consumed by WorkManager; only transient failures should cause backoff/retry. */
 data class SynchronizationResult(val transientFailure: Boolean)
+
+/** Serializes every full sync pass, including passes started by different repository instances. */
+private val synchronizationMutex = Mutex()
 
 class FeedbackRepository(
     private val dao: FeedbackDao,
@@ -28,7 +33,7 @@ class FeedbackRepository(
      * Performs the complete deterministic sync pass: deletes, creates, then download/reconcile.
      * Pending Room rows are protected by the DAO's reconciliation transaction.
      */
-    suspend fun synchronize(): SynchronizationResult {
+    suspend fun synchronize(): SynchronizationResult = synchronizationMutex.withLock {
         var transientFailure = false
 
         dao.getPendingByState(SyncState.PENDING_DELETE).forEach { item ->
@@ -50,7 +55,7 @@ class FeedbackRepository(
         }
 
         if (transientFailure) scheduleSync()
-        return SynchronizationResult(transientFailure)
+        SynchronizationResult(transientFailure)
     }
 
     /** Kept as a compatibility entry point; it now runs a complete two-way synchronization. */
@@ -77,16 +82,41 @@ class FeedbackRepository(
         val existing = api.getById(item.feedbackId)
         when {
             existing.isSuccessful -> {
-                dao.setSyncState(item.localId, SyncState.SYNCED)
-                Attempt.SUCCESS
+                if (existing.body()?.id == item.feedbackId) {
+                    dao.setSyncState(item.localId, SyncState.SYNCED)
+                    Attempt.SUCCESS
+                } else {
+                    Attempt.PERMANENT_FAILURE
+                }
             }
             existing.code() == 404 -> {
-                api.add(item.toDto())
-                dao.setSyncState(item.localId, SyncState.SYNCED)
-                Attempt.SUCCESS
+                try {
+                    api.add(item.toDto())
+                    dao.setSyncState(item.localId, SyncState.SYNCED)
+                    Attempt.SUCCESS
+                } catch (postError: Exception) {
+                    if (postError.isTransient()) confirmCreateAfterUncertainPost(item) else throw postError
+                }
             }
             existing.code().isTransientHttpCode() -> Attempt.TRANSIENT_FAILURE
             else -> Attempt.PERMANENT_FAILURE
+        }
+    } catch (error: Exception) {
+        when {
+            error.isTransient() -> Attempt.TRANSIENT_FAILURE
+            error is HttpException -> Attempt.PERMANENT_FAILURE
+            else -> throw error
+        }
+    }
+
+    /** A timed-out/5xx POST may have persisted remotely, so confirm by distributed ID before retrying. */
+    private suspend fun confirmCreateAfterUncertainPost(item: FeedbackEntity): Attempt = try {
+        val confirmation = api.getById(item.feedbackId)
+        if (confirmation.isSuccessful && confirmation.body()?.id == item.feedbackId) {
+            dao.setSyncState(item.localId, SyncState.SYNCED)
+            Attempt.SUCCESS
+        } else {
+            Attempt.TRANSIENT_FAILURE
         }
     } catch (error: Exception) {
         when {

@@ -9,6 +9,10 @@ import com.example.crowdtransportfeedback.data.local.SyncState
 import com.example.crowdtransportfeedback.data.remote.FeedbackApi
 import com.example.crowdtransportfeedback.data.remote.FeedbackDto
 import com.example.crowdtransportfeedback.data.remote.toEntity
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import okhttp3.ResponseBody.Companion.toResponseBody
@@ -83,6 +87,17 @@ class FeedbackRepositoryTest {
     }
 
     @Test
+    fun uncertainPostIsConfirmedByDistributedId() = runBlocking {
+        api.failNextAddAfterPersist = true
+
+        val localId = repository.addFeedbackAndUpload(feedback("uncertain-post"))
+
+        assertEquals(SyncState.SYNCED, repository.getById(localId).first()?.syncState)
+        assertEquals(1, api.remote.count { it.id == "uncertain-post" })
+        assertEquals(0, scheduled)
+    }
+
+    @Test
     fun offlineDeleteLeavesHiddenTombstoneAndSchedulesRetry() = runBlocking {
         val localId = database.feedbackDao().insert(feedback("delete-id", SyncState.SYNCED))
         api.networkAvailable = false
@@ -129,6 +144,28 @@ class FeedbackRepositoryTest {
     }
 
     @Test
+    fun concurrentSynchronizationAcrossRepositoriesCreatesRemoteItemOnce() = runBlocking {
+        val localId = database.feedbackDao().insert(feedback("concurrent-id"))
+        api.getByIdDelayMillis = 100
+        val secondRepository = FeedbackRepository(database.feedbackDao(), api)
+
+        val results = coroutineScope {
+            listOf(
+                async { repository.synchronize() },
+                async { secondRepository.synchronize() }
+            ).awaitAll()
+        }
+
+        assertTrue(results.none { it.transientFailure })
+        assertEquals(1, api.added.count { it.id == "concurrent-id" })
+        assertEquals(1, api.remote.count { it.id == "concurrent-id" })
+        assertEquals(
+            SyncState.SYNCED,
+            database.feedbackDao().getByLocalIdOnce(localId)?.syncState
+        )
+    }
+
+    @Test
     fun repositoryReconciliationPreservesPendingLocalVersion() = runBlocking {
         val localId = database.feedbackDao().insert(feedback("same-id", comment = "pending local"))
         api.remote = listOf(feedbackDto("same-id", "remote copy"))
@@ -169,6 +206,8 @@ class FeedbackRepositoryTest {
 
 private class RecordingFeedbackApi : FeedbackApi {
     var networkAvailable = true
+    var getByIdDelayMillis = 0L
+    var failNextAddAfterPersist = false
     var remote: List<FeedbackDto> = emptyList()
     val added = mutableListOf<FeedbackDto>()
     val deleted = mutableListOf<String>()
@@ -180,6 +219,7 @@ private class RecordingFeedbackApi : FeedbackApi {
 
     override suspend fun getById(id: String): Response<FeedbackDto> {
         requireNetwork()
+        delay(getByIdDelayMillis)
         val found = remote.firstOrNull { it.id == id }
         return found?.let { Response.success(it) }
             ?: Response.error(404, "not found".toResponseBody())
@@ -189,6 +229,10 @@ private class RecordingFeedbackApi : FeedbackApi {
         requireNetwork()
         added += item
         remote += item
+        if (failNextAddAfterPersist) {
+            failNextAddAfterPersist = false
+            throw IOException("response lost after persistence")
+        }
         return item
     }
 
