@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.crowdtransportfeedback.auth.AuthRepository
@@ -61,6 +62,8 @@ private fun AuthenticatedNav(
     profileApi: ProfileApi
 ) {
     val navController = rememberNavController()
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val isFeedbackList = backStackEntry?.destination?.route.let { it == null || it == Routes.LIST }
     var avatarKey by remember(user.id) { mutableStateOf("COMMUTER") }
     LaunchedEffect(user.id) {
         runCatching { profileApi.me() }.onSuccess { avatarKey = it.avatarKey }
@@ -71,7 +74,9 @@ private fun AuthenticatedNav(
             email = user.email,
             role = user.role.name,
             session = sessionManager,
-            onProfile = { navController.navigate(Routes.PROFILE) },
+            onProfile = { navController.navigate(Routes.PROFILE) { launchSingleTop = true } },
+            showBack = !isFeedbackList,
+            onBack = { navController.popBackStack() },
             avatarKey = avatarKey
         )
         NavHost(
@@ -113,7 +118,7 @@ private fun AuthenticatedNav(
                     ,onAuthor = { navController.navigate("${Routes.PUBLIC_PROFILE}/$it") }
                 )
             }
-            composable(Routes.PROFILE) { MyProfileScreen(profileApi,{navController.navigate(Routes.ACHIEVEMENTS)},{navController.navigate(Routes.LEADERBOARD)},{ avatarKey = it }) }
+            composable(Routes.PROFILE) { MyProfileScreen(profileApi,{navController.navigate(Routes.ACHIEVEMENTS) { launchSingleTop = true }},{navController.navigate(Routes.LEADERBOARD) { launchSingleTop = true }},{ avatarKey = it }) }
             composable(Routes.ACHIEVEMENTS) { AchievementsScreen(profileApi) }
             composable(Routes.LEADERBOARD) { LeaderboardScreen(profileApi){navController.navigate("${Routes.PUBLIC_PROFILE}/$it")} }
             composable("${Routes.PUBLIC_PROFILE}/{username}",arguments=listOf(navArgument("username"){type=NavType.StringType})){PublicProfileScreen(profileApi,it.arguments?.getString("username").orEmpty())}

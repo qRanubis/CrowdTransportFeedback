@@ -77,7 +77,7 @@ fun AchievementsScreen(api: ProfileApi) {
                         scope.launch {
                             val pins = badges.filter { it.pinned }.sortedBy { it.pinOrder }.map { it.code }.toMutableList()
                             if (badge.pinned) pins.remove(badge.code) else if (pins.size < 3) pins.add(badge.code)
-                            runCatching { api.pins(mapOf("achievementCodes" to pins)) }.onSuccess { refresh() }.onFailure { state = RemoteState.Failed("Could not update pinned achievements") }
+                            runCatching { api.updatePins(pins) }.onSuccess { refresh() }.onFailure { error -> state = RemoteState.Failed("Could not update pinned achievements (${error.message ?: "network error"})") }
                         }
                     }) { Column(Modifier.padding(8.dp)) { Text((if (badge.unlocked) "🏅 " else "🔒 ") + badge.title); Text(badge.description); Text("${badge.currentProgress} / ${badge.targetProgress}${if (badge.pinned) " · Pinned" else ""}"); badge.unlockedAt?.let { Text("Unlocked $it") } } }
                 }

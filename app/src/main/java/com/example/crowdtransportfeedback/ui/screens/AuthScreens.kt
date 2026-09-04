@@ -149,6 +149,8 @@ fun AccountBar(
     role: String,
     session: SessionManager,
     onProfile: () -> Unit = {},
+    showBack: Boolean = false,
+    onBack: () -> Unit = {},
     avatarKey: String = "COMMUTER"
 ) {
     val scope = rememberCoroutineScope()
@@ -157,12 +159,16 @@ fun AccountBar(
         Modifier.fillMaxWidth().padding(8.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Column(Modifier.clickable(onClick = onProfile)) {
-            Text("${avatarSymbol(avatarKey)} ${if (username.isBlank()) email else "@$username"}")
-            if (username.isNotBlank()) {
-                Text(email, style = MaterialTheme.typography.labelSmall)
+        if (showBack) {
+            TextButton(onClick = onBack) { Text("← Back") }
+        } else {
+            Column(Modifier.clickable(onClick = onProfile)) {
+                Text("${avatarSymbol(avatarKey)} ${if (username.isBlank()) email else "@$username"}")
+                if (username.isNotBlank()) {
+                    Text(email, style = MaterialTheme.typography.labelSmall)
+                }
+                Text(role, style = MaterialTheme.typography.labelSmall)
             }
-            Text(role, style = MaterialTheme.typography.labelSmall)
         }
 
         TextButton(onClick = { scope.launch { session.logout() } }) {
