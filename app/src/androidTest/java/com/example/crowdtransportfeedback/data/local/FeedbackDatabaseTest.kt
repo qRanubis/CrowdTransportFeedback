@@ -127,7 +127,7 @@ class FeedbackMigrationTest {
     }
 
     @Test
-    fun migrationFrom1To5PreservesFeedbackAndLegacySyncMeaning() = runBlocking {
+    fun migrationFrom1To6PreservesFeedbackAndLegacySyncMeaning() = runBlocking {
         context.deleteDatabase(databaseName)
         SQLiteDatabase.openOrCreateDatabase(context.getDatabasePath(databaseName), null).use { legacy ->
             legacy.execSQL(
@@ -157,7 +157,7 @@ class FeedbackMigrationTest {
         }
 
         val migrated = Room.databaseBuilder(context, AppDatabase::class.java, databaseName)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
             .allowMainThreadQueries()
             .build()
 
@@ -179,5 +179,7 @@ class FeedbackMigrationTest {
         assertNull(rows[1].createdByUserId)
         assertNull(rows[0].createdByUsername)
         assertNull(rows[1].createdByUsername)
+        assertNull(rows[0].createdByAvatarKey)
+        assertNull(rows[0].rejectionReason)
     }
 }

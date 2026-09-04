@@ -1,7 +1,7 @@
 ALTER TABLE app_user ADD COLUMN avatar_key VARCHAR(24) NOT NULL DEFAULT 'COMMUTER'
   CHECK (avatar_key IN ('COMMUTER','NAVIGATOR','EXPLORER'));
 ALTER TABLE feedback ADD COLUMN normalized_line VARCHAR(32);
-UPDATE feedback SET normalized_line = upper(regexp_replace(btrim(line), '\\s+', ' ', 'g'));
+UPDATE feedback SET normalized_line = upper(regexp_replace(btrim(line), '[[:space:]]+', ' ', 'g'));
 ALTER TABLE feedback ALTER COLUMN normalized_line SET NOT NULL;
 
 CREATE TABLE gamification_event (

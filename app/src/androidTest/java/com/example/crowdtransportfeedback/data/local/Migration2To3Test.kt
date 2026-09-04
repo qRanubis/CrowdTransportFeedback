@@ -33,7 +33,7 @@ class Migration2To3Test {
         }
 
         val database = Room.databaseBuilder(context, AppDatabase::class.java, name)
-            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
             .allowMainThreadQueries()
             .build()
 
@@ -48,6 +48,8 @@ class Migration2To3Test {
         assertNull(row.punctualityScore)
         assertNull(row.createdByUserId)
         assertNull(row.createdByUsername)
+        assertNull(row.createdByAvatarKey)
+        assertNull(row.rejectionReason)
         database.close()
     }
 }

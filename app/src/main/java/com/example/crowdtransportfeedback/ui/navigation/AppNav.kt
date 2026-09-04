@@ -63,7 +63,8 @@ private fun AuthenticatedNav(
             email = user.email,
             role = user.role.name,
             session = sessionManager,
-            onProfile = { navController.navigate(Routes.PROFILE) }
+            onProfile = { navController.navigate(Routes.PROFILE) },
+            profileApi = profileApi
         )
         NavHost(
             navController = navController,

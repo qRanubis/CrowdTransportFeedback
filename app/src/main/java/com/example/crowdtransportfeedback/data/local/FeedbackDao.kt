@@ -39,8 +39,8 @@ interface FeedbackDao {
     @Query("UPDATE feedback SET syncState = 'REJECTED', rejectionReason = :reason WHERE localId = :localId")
     suspend fun reject(localId: Long, reason: String)
 
-    @Query("SELECT count(*) FROM feedback WHERE createdByUserId=:userId AND transportType=:type AND upper(trim(line))=:line AND createdAt>:after AND createdAt<=:at AND syncState != 'PENDING_DELETE'")
-    suspend fun cooldownCount(userId:String,type:String,line:String,after:Long,at:Long):Int
+    @Query("SELECT * FROM feedback WHERE createdByUserId=:userId AND transportType=:type AND createdAt>:after AND createdAt<:before AND syncState != 'REJECTED'")
+    suspend fun cooldownCandidates(userId:String,type:String,after:Long,before:Long):List<FeedbackEntity>
 
     @Query(
         """

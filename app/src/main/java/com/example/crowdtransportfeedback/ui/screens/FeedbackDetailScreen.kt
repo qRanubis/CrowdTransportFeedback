@@ -49,7 +49,10 @@ fun FeedbackDetailScreen(
             Text("${avatarSymbol(current.createdByAvatarKey ?: "COMMUTER")} Author: ${author?.let { "@$it  ›" } ?: "Not available"}", Modifier.clickable(enabled=author!=null){author?.let(onAuthor)})
             Text("Comment: ${current.comment.ifBlank { "Not available" }}")
             Text("Latitude / longitude: ${current.latitude ?: "Not available"} / ${current.longitude ?: "Not available"}")
-            Text("Sync status: ${current.syncState.displayName}")
+            val syncLabel = if (current.syncState == SyncState.REJECTED) {
+                "Rejected: ${current.rejectionReason ?: "synchronization rejected"}"
+            } else current.syncState.displayName
+            Text("Sync status: $syncLabel")
             Text("Local id: ${current.localId}")
 
             val canDelete = canDeleteFeedback(currentUserRole, currentUserId, current.createdByUserId)
@@ -77,5 +80,5 @@ private val SyncState.displayName: String
         SyncState.PENDING_CREATE -> "Pending"
         SyncState.SYNCED -> "Synchronized"
         SyncState.PENDING_DELETE -> "Pending deletion"
-        SyncState.REJECTED -> "Rejected: feedback cooldown"
+        SyncState.REJECTED -> "Rejected"
     }

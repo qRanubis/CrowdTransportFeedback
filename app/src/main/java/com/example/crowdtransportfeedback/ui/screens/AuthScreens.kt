@@ -14,6 +14,7 @@ import com.example.crowdtransportfeedback.auth.isValidRegistrationEmail
 import com.example.crowdtransportfeedback.auth.isValidUsername
 import com.example.crowdtransportfeedback.auth.registrationPasswordError
 import kotlinx.coroutines.launch
+import com.example.crowdtransportfeedback.profile.ProfileApi
 
 @Composable
 fun AuthScreen(repository: AuthRepository, session: SessionManager) {
@@ -148,16 +149,19 @@ fun AccountBar(
     email: String,
     role: String,
     session: SessionManager,
-    onProfile: () -> Unit = {}
+    onProfile: () -> Unit = {},
+    profileApi: ProfileApi? = null
 ) {
     val scope = rememberCoroutineScope()
+    var avatarKey by remember { mutableStateOf("COMMUTER") }
+    LaunchedEffect(profileApi) { profileApi?.let { runCatching { it.me() }.onSuccess { profile -> avatarKey = profile.avatarKey } } }
 
     Row(
         Modifier.fillMaxWidth().padding(8.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Column(Modifier.clickable(onClick = onProfile)) {
-            Text(if (username.isBlank()) email else "@$username")
+            Text("${avatarSymbol(avatarKey)} ${if (username.isBlank()) email else "@$username"}")
             if (username.isNotBlank()) {
                 Text(email, style = MaterialTheme.typography.labelSmall)
             }

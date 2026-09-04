@@ -74,6 +74,7 @@ class FeedbackServiceTest {
         when(repository.findById(id)).thenReturn(Optional.of(stored));
         service.delete(id, UUID.randomUUID(), "ADMIN");
         verify(repository).delete(stored);
+        verify(gamification).revoke(stored.owner, id);
     }
 
     @Test

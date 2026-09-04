@@ -83,7 +83,7 @@ class FeedbackRepository(
             throw SecurityException("Only the author or an administrator can delete feedback")
         }
 
-        if (item.syncState == SyncState.PENDING_CREATE) {
+        if (item.syncState == SyncState.PENDING_CREATE || item.syncState == SyncState.REJECTED) {
             dao.deleteByLocalId(localId)
             return
         }
@@ -149,7 +149,7 @@ class FeedbackRepository(
         } catch (error: Exception) {
             when {
                 error.isTransient() || error.isTemporaryAuthenticationFailure() -> Attempt.TRANSIENT_FAILURE
-                error is HttpException && error.code() == 409 -> { dao.reject(item.localId, "feedback_cooldown"); Attempt.PERMANENT_FAILURE }
+                error is HttpException && error.code() == 409 && error.safeApiCode() == "feedback_cooldown" -> { dao.reject(item.localId, "feedback_cooldown"); Attempt.PERMANENT_FAILURE }
                 error is HttpException -> Attempt.PERMANENT_FAILURE
                 else -> throw error
             }
@@ -208,7 +208,8 @@ class FeedbackRepository(
     private suspend fun enforceLocalCooldown(item: FeedbackEntity, userId: String) {
         val type = item.transportType?.name ?: return
         val line = item.line?.trim()?.replace(Regex("\\s+"), " ")?.uppercase() ?: return
-        if (dao.cooldownCount(userId, type, line, item.createdAt - 30 * 60 * 1000, item.createdAt) > 0) {
+        if (dao.cooldownCandidates(userId, type, item.createdAt - 30 * 60 * 1000, item.createdAt + 30 * 60 * 1000)
+                .any { normalizeLine(it.line) == line }) {
             throw IllegalArgumentException("feedback_cooldown")
         }
     }
@@ -219,7 +220,15 @@ class FeedbackRepository(
         this is HttpException && code() == 401 && temporaryAuthFailure()
 }
 
+internal fun normalizeLine(value: String?): String? =
+    value?.trim()?.replace(Regex("\\s+"), " ")?.uppercase()
+
 private fun Exception.isTransient(): Boolean =
     this is IOException || (this is HttpException && code().isTransientHttpCode())
 
 private fun Int.isTransientHttpCode(): Boolean = this == 408 || this == 429 || this in 500..599
+
+internal fun HttpException.safeApiCode(): String? =
+    response()?.errorBody()?.string()?.let { body ->
+        Regex("\\\"code\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"").find(body)?.groupValues?.get(1)
+    }

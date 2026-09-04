@@ -88,7 +88,10 @@ class FeedbackViewModel(private val repo: FeedbackRepository) : ViewModel() {
                 _formState.value = FeedbackFormState()
                 onPersisted()
             } catch (error: Exception) {
-                _formState.value = state.copy(isSubmitting = false, error = "Unable to save feedback")
+                val message = if (error.message == "feedback_cooldown") {
+                    "You can submit feedback for this line once every 30 minutes."
+                } else "Unable to save feedback"
+                _formState.value = state.copy(isSubmitting = false, error = message)
             }
         }
     }
