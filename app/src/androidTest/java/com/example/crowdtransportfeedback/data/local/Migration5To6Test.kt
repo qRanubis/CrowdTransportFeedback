@@ -16,7 +16,10 @@ class Migration5To6Test {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val name = "migration-5-6-test"
 
-    @After fun cleanUp() = context.deleteDatabase(name)
+    @After
+    fun cleanUp() {
+        context.deleteDatabase(name)
+    }
 
     @Test fun version5RowSurvivesAndNewFieldsAreNullable() = runBlocking {
         context.deleteDatabase(name)
