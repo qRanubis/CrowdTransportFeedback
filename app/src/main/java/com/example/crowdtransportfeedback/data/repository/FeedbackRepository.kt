@@ -68,10 +68,9 @@ class FeedbackRepository(
     }
 
     suspend fun deleteFeedbackAdmin(localId: Long) {
-        val item = dao.getByLocalIdOnce(localId) ?: return
+        if (dao.getByLocalIdOnce(localId) == null) return
         dao.setSyncState(localId, SyncState.PENDING_DELETE)
-        val tombstone = item.copy(localId = localId, syncState = SyncState.PENDING_DELETE)
-        if (processDelete(tombstone) != Attempt.SUCCESS) scheduleSync()
+        scheduleSync()
     }
 
     suspend fun addFeedbackAndUpload(item: FeedbackEntity): Long {
