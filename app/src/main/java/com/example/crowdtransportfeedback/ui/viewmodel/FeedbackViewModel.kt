@@ -35,6 +35,12 @@ class FeedbackViewModel(private val repo: FeedbackRepository) : ViewModel() {
     fun setComment(value: String) { if (!_formState.value.isSubmitting) _formState.value = _formState.value.copy(comment = value) }
     fun setLocationState(value: LocationState) { if (!_formState.value.isSubmitting) _formState.value = _formState.value.copy(locationState = value) }
 
+    fun resetFeedbackForm() {
+        if (!_formState.value.isSubmitting) {
+            _formState.value = _formState.value.resetForNewReport()
+        }
+    }
+
     fun submit(onPersisted: () -> Unit) {
         val state = _formState.value
         if (!state.isValid || state.isSubmitting) return
