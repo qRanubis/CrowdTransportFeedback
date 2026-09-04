@@ -5,7 +5,7 @@ import com.example.crowdtransportfeedback.domain.TransportType
 data class FeedbackDto(
     val id: String,
     val score: Int,
-    val comment: String,
+    val comment: String?,
     val line: String?,
     val createdAt: Long,
     val latitude: Double? = null,
