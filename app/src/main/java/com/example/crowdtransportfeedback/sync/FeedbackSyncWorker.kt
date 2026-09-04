@@ -3,8 +3,8 @@ package com.example.crowdtransportfeedback.sync
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.example.crowdtransportfeedback.CrowdTransportApplication
 import com.example.crowdtransportfeedback.data.local.DatabaseProvider
-import com.example.crowdtransportfeedback.data.remote.RetrofitClient
 import com.example.crowdtransportfeedback.data.repository.FeedbackRepository
 
 class FeedbackSyncWorker(
@@ -12,9 +12,13 @@ class FeedbackSyncWorker(
     workerParams: WorkerParameters
 ) : CoroutineWorker(appContext, workerParams) {
     override suspend fun doWork(): Result {
+        val app = applicationContext as CrowdTransportApplication
+        val session = app.services.network.sessionManager
         val repository = FeedbackRepository(
-            DatabaseProvider.getDatabase(applicationContext).feedbackDao(),
-            RetrofitClient.api
+            dao = DatabaseProvider.getDatabase(applicationContext).feedbackDao(),
+            api = app.services.network.feedbackApi,
+            currentUserId = { session.user()?.id },
+            temporaryAuthFailure = session::hasTemporaryRefreshFailure
         )
         return try {
             if (repository.synchronize().transientFailure) Result.retry() else Result.success()

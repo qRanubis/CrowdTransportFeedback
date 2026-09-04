@@ -9,6 +9,7 @@ import com.example.crowdtransportfeedback.data.local.SyncState
 import com.example.crowdtransportfeedback.data.remote.FeedbackApi
 import com.example.crowdtransportfeedback.data.remote.FeedbackDto
 import com.example.crowdtransportfeedback.data.remote.toEntity
+import java.io.IOException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -26,7 +27,6 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import retrofit2.Response
-import java.io.IOException
 
 @RunWith(AndroidJUnit4::class)
 class FeedbackRepositoryTest {
@@ -34,6 +34,7 @@ class FeedbackRepositoryTest {
     private lateinit var api: RecordingFeedbackApi
     private lateinit var repository: FeedbackRepository
     private var scheduled = 0
+    private var currentUserId: String? = USER_A
 
     @Before
     fun setUp() {
@@ -43,7 +44,13 @@ class FeedbackRepositoryTest {
         ).allowMainThreadQueries().build()
         api = RecordingFeedbackApi()
         scheduled = 0
-        repository = FeedbackRepository(database.feedbackDao(), api) { scheduled++ }
+        currentUserId = USER_A
+        repository = FeedbackRepository(
+            dao = database.feedbackDao(),
+            api = api,
+            scheduleSync = { scheduled++ },
+            currentUserId = { currentUserId }
+        )
     }
 
     @After
@@ -56,7 +63,9 @@ class FeedbackRepositoryTest {
 
         assertEquals("feedback-uuid", api.added.single().id)
         assertNotEquals(localId.toString(), api.added.single().id)
+        assertEquals(USER_A, api.added.single().createdByUserId)
         assertEquals(SyncState.SYNCED, stored?.syncState)
+        assertEquals(USER_A, stored?.createdByUserId)
     }
 
     @Test
@@ -77,7 +86,7 @@ class FeedbackRepositoryTest {
     fun retryIsIdempotentWhenServerAlreadyHasDistributedId() = runBlocking {
         api.networkAvailable = false
         val localId = repository.addFeedbackAndUpload(feedback("already-created"))
-        api.remote += feedbackDto("already-created", "remote copy")
+        api.remote += feedbackDto("already-created", "remote copy", USER_A)
         api.networkAvailable = true
 
         repository.synchronize()
@@ -113,7 +122,7 @@ class FeedbackRepositoryTest {
     @Test
     fun deleteRetryPermanentlyRemovesTombstone() = runBlocking {
         val localId = database.feedbackDao().insert(feedback("delete-retry", SyncState.SYNCED))
-        api.remote += feedbackDto("delete-retry", "remote")
+        api.remote += feedbackDto("delete-retry", "remote", USER_A)
         api.networkAvailable = false
         repository.deleteFeedbackAdmin(localId)
 
@@ -157,7 +166,11 @@ class FeedbackRepositoryTest {
     fun concurrentSynchronizationAcrossRepositoriesCreatesRemoteItemOnce() = runBlocking {
         val localId = database.feedbackDao().insert(feedback("concurrent-id"))
         api.getByIdDelayMillis = 100
-        val secondRepository = FeedbackRepository(database.feedbackDao(), api)
+        val secondRepository = FeedbackRepository(
+            dao = database.feedbackDao(),
+            api = api,
+            currentUserId = { currentUserId }
+        )
 
         val results = coroutineScope {
             listOf(
@@ -178,20 +191,57 @@ class FeedbackRepositoryTest {
     @Test
     fun repositoryReconciliationPreservesPendingLocalVersion() = runBlocking {
         val localId = database.feedbackDao().insert(feedback("same-id", comment = "pending local"))
-        api.remote = listOf(feedbackDto("same-id", "remote copy"))
+        api.remote = listOf(feedbackDto("same-id", "remote copy", USER_A))
 
-        // Test reconciliation directly because a full pass intentionally uploads pending creates first.
         database.feedbackDao().reconcileRemote(api.getAll().map { it.toEntity() })
 
         val stored = repository.getById(localId).first()
         assertEquals("pending local", stored?.comment)
         assertEquals(SyncState.PENDING_CREATE, stored?.syncState)
+        assertEquals(USER_A, stored?.createdByUserId)
+    }
+
+    @Test
+    fun pendingCreateNeverUploadsUnderAnotherAccountAndUploadsWhenCreatorReturns() = runBlocking {
+        val localId = database.feedbackDao().insert(
+            feedback("cross-account", createdByUserId = USER_A)
+        )
+
+        currentUserId = USER_B
+        repository.synchronize()
+
+        val whileOtherUser = database.feedbackDao().getByLocalIdOnce(localId)
+        assertEquals(0, api.added.size)
+        assertEquals(SyncState.PENDING_CREATE, whileOtherUser?.syncState)
+        assertEquals(USER_A, whileOtherUser?.createdByUserId)
+
+        currentUserId = USER_A
+        repository.synchronize()
+
+        val afterCreatorReturns = database.feedbackDao().getByLocalIdOnce(localId)
+        assertEquals(1, api.added.count { it.id == "cross-account" })
+        assertEquals(SyncState.SYNCED, afterCreatorReturns?.syncState)
+        assertEquals(USER_A, afterCreatorReturns?.createdByUserId)
+    }
+
+    @Test
+    fun ownerlessLegacyPendingCreateIsNotUploaded() = runBlocking {
+        val localId = database.feedbackDao().insert(
+            feedback("legacy-ownerless", createdByUserId = null)
+        )
+
+        repository.synchronize()
+
+        assertEquals(0, api.added.size)
+        assertEquals(SyncState.PENDING_CREATE, database.feedbackDao().getByLocalIdOnce(localId)?.syncState)
+        assertNull(database.feedbackDao().getByLocalIdOnce(localId)?.createdByUserId)
     }
 
     private fun feedback(
         feedbackId: String,
         syncState: SyncState = SyncState.PENDING_CREATE,
-        comment: String = "Comment"
+        comment: String = "Comment",
+        createdByUserId: String? = USER_A
     ) = FeedbackEntity(
         feedbackId = feedbackId,
         score = 4,
@@ -200,18 +250,29 @@ class FeedbackRepositoryTest {
         longitude = 26.1025,
         line = "41",
         createdAt = 1_700_000_000_000,
-        syncState = syncState
+        syncState = syncState,
+        createdByUserId = createdByUserId
     )
 
-    private fun feedbackDto(feedbackId: String, comment: String) = FeedbackDto(
+    private fun feedbackDto(
+        feedbackId: String,
+        comment: String,
+        createdByUserId: String
+    ) = FeedbackDto(
         id = feedbackId,
-        score = 3,
+        score = 3.0,
         comment = comment,
         line = "41",
         createdAt = 1_700_000_000_100,
         latitude = 44.4268,
-        longitude = 26.1025
+        longitude = 26.1025,
+        createdByUserId = createdByUserId
     )
+
+    companion object {
+        private const val USER_A = "11111111-1111-1111-1111-111111111111"
+        private const val USER_B = "22222222-2222-2222-2222-222222222222"
+    }
 }
 
 private class RecordingFeedbackApi : FeedbackApi {
@@ -250,7 +311,9 @@ private class RecordingFeedbackApi : FeedbackApi {
     override suspend fun delete(id: String): Response<Unit> {
         deleteCalls++
         requireNetwork()
-        if (remote.none { it.id == id }) return Response.error(404, "not found".toResponseBody())
+        if (remote.none { it.id == id }) {
+            return Response.error(404, "not found".toResponseBody())
+        }
         remote = remote.filterNot { it.id == id }
         deleted += id
         return Response.success(Unit)

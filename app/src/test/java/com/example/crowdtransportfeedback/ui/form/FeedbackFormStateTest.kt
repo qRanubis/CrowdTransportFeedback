@@ -6,14 +6,13 @@ import org.junit.Test
 
 class FeedbackFormStateTest {
     private fun complete() = FeedbackFormState(
-        1,
-        5,
-        3,
-        4,
-        TransportType.TRAM,
-        "41",
-        "  useful  ",
-        LocationState.Available(44.4, 26.1)
+        crowdingScore = 5,
+        cleanlinessScore = 3,
+        punctualityScore = 4,
+        transportType = TransportType.TRAM,
+        line = "41",
+        comment = "  useful  ",
+        locationState = LocationState.Available(44.4, 26.1)
     )
 
     @Test
@@ -29,7 +28,6 @@ class FeedbackFormStateTest {
     fun everyStructuredFieldAndAvailableLocationAreRequired() {
         val state = complete()
         assertTrue(state.isValid)
-        assertFalse(state.copy(overallTrust = null).isValid)
         assertFalse(state.copy(crowdingScore = null).isValid)
         assertFalse(state.copy(cleanlinessScore = null).isValid)
         assertFalse(state.copy(punctualityScore = null).isValid)
@@ -38,6 +36,12 @@ class FeedbackFormStateTest {
         assertFalse(state.copy(locationState = LocationState.Idle).isValid)
         assertFalse(state.copy(locationState = LocationState.PermissionDenied).isValid)
         assertFalse(state.copy(locationState = LocationState.Error).isValid)
+    }
+
+    @Test
+    fun overallRatingIsCalculatedFromThreeStructuredRatings() {
+        assertEquals(4.0, complete().overallRating!!, 0.0001)
+        assertNull(complete().copy(crowdingScore = null).overallRating)
     }
 
     @Test
@@ -72,7 +76,7 @@ class FeedbackFormStateTest {
             error = "Unable to save feedback"
         ).resetForNewReport()
 
-        assertNull(reset.overallTrust)
+        assertNull(reset.overallRating)
         assertNull(reset.crowdingScore)
         assertNull(reset.cleanlinessScore)
         assertNull(reset.punctualityScore)

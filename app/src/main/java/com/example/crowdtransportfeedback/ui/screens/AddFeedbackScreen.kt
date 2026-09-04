@@ -30,8 +30,10 @@ fun AddFeedbackScreen(vm: FeedbackViewModel, onSaved: () -> Unit, onCancel: () -
     val provider = remember { AndroidLocationProvider(context) }
     var navigationHandled by rememberSaveable { mutableStateOf(false) }
 
-    fun hasPermission() = listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
-        .any { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
+    fun hasPermission() = listOf(
+        Manifest.permission.ACCESS_FINE_LOCATION,
+        Manifest.permission.ACCESS_COARSE_LOCATION
+    ).any { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
 
     fun fetch() {
         if (!hasPermission()) {
@@ -49,13 +51,20 @@ fun AddFeedbackScreen(vm: FeedbackViewModel, onSaved: () -> Unit, onCancel: () -
         }
     }
 
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
         if (grants.values.any { it }) fetch() else vm.setLocationState(LocationState.PermissionDenied)
     }
 
     fun requestPermission() {
         vm.setLocationState(LocationState.RequestingPermission)
-        launcher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+        launcher.launch(
+            arrayOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+        )
     }
 
     fun cancelAndNavigateBack() {
@@ -67,9 +76,7 @@ fun AddFeedbackScreen(vm: FeedbackViewModel, onSaved: () -> Unit, onCancel: () -
     }
 
     BackHandler(enabled = true) {
-        if (!state.isSubmitting) {
-            cancelAndNavigateBack()
-        }
+        if (!state.isSubmitting) cancelAndNavigateBack()
     }
 
     LaunchedEffect(Unit) {
@@ -80,7 +87,9 @@ fun AddFeedbackScreen(vm: FeedbackViewModel, onSaved: () -> Unit, onCancel: () -
         }
     }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)
+    ) {
         Text("Add feedback", style = MaterialTheme.typography.titleLarge)
 
         Selector(
@@ -98,10 +107,39 @@ fun AddFeedbackScreen(vm: FeedbackViewModel, onSaved: () -> Unit, onCancel: () -
             onSelect = vm::setLine
         )
 
-        RatingSelector("Punctuality", "1 = Very poor", "5 = Very good", state.punctualityScore, vm::setPunctuality)
-        RatingSelector("Cleanliness", "1 = Very dirty", "5 = Very clean", state.cleanlinessScore, vm::setCleanliness)
-        RatingSelector("Crowding comfort", "1 = Extremely crowded", "5 = Plenty of space", state.crowdingScore, vm::setCrowding)
-        RatingSelector("Overall trust", "1 = Very low", "5 = Very high", state.overallTrust, vm::setOverall)
+        RatingSelector(
+            "Punctuality",
+            "1 = Very poor",
+            "5 = Very good",
+            state.punctualityScore,
+            vm::setPunctuality
+        )
+        RatingSelector(
+            "Cleanliness",
+            "1 = Very dirty",
+            "5 = Very clean",
+            state.cleanlinessScore,
+            vm::setCleanliness
+        )
+        RatingSelector(
+            "Crowding comfort",
+            "1 = Extremely crowded",
+            "5 = Plenty of space",
+            state.crowdingScore,
+            vm::setCrowding
+        )
+
+        Spacer(Modifier.height(12.dp))
+        Text("Overall rating", style = MaterialTheme.typography.labelLarge)
+        Text(
+            state.overallRating?.let { String.format(Locale.US, "%.1f / 5", it) }
+                ?: "Select the three ratings above",
+            style = MaterialTheme.typography.titleMedium
+        )
+        Text(
+            "Calculated automatically from punctuality, cleanliness and crowding comfort.",
+            style = MaterialTheme.typography.bodySmall
+        )
 
         OutlinedTextField(
             state.comment,
@@ -143,13 +181,22 @@ fun AddFeedbackScreen(vm: FeedbackViewModel, onSaved: () -> Unit, onCancel: () -
         }
 
         if (!state.isValid) {
-            Text("All ratings, transport type, line, and location are required.", style = MaterialTheme.typography.bodySmall)
+            Text(
+                "The three ratings, transport type, line, and location are required.",
+                style = MaterialTheme.typography.bodySmall
+            )
         }
     }
 }
 
 @Composable
-fun RatingSelector(label: String, low: String, high: String, selected: Int?, onSelect: (Int) -> Unit) {
+fun RatingSelector(
+    label: String,
+    low: String,
+    high: String,
+    selected: Int?,
+    onSelect: (Int) -> Unit
+) {
     Spacer(Modifier.height(12.dp))
     Text(label, style = MaterialTheme.typography.labelLarge)
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -164,7 +211,12 @@ fun RatingSelector(label: String, low: String, high: String, selected: Int?, onS
 }
 
 @Composable
-private fun Selector(label: String, value: String, choices: List<String>, onSelect: (String) -> Unit) {
+private fun Selector(
+    label: String,
+    value: String,
+    choices: List<String>,
+    onSelect: (String) -> Unit
+) {
     var expanded by remember { mutableStateOf(false) }
     Spacer(Modifier.height(12.dp))
     Text(label, style = MaterialTheme.typography.labelLarge)
@@ -238,14 +290,23 @@ private fun SearchableLineSelector(
 
 internal fun filterLines(choices: List<String>, query: String): List<String> {
     val normalized = query.trim()
-    return if (normalized.isEmpty()) choices else choices.filter { it.startsWith(normalized, ignoreCase = true) }
+    return if (normalized.isEmpty()) {
+        choices
+    } else {
+        choices.filter { it.startsWith(normalized, ignoreCase = true) }
+    }
 }
 
 internal fun locationMessage(state: LocationState): String = when (state) {
     LocationState.Idle, LocationState.PermissionRequired -> "Location permission required"
     LocationState.RequestingPermission -> "Requesting location permission..."
     LocationState.Loading -> "Getting location..."
-    is LocationState.Available -> String.format(Locale.US, "%.5f, %.5f", state.latitude, state.longitude)
+    is LocationState.Available -> String.format(
+        Locale.US,
+        "%.5f, %.5f",
+        state.latitude,
+        state.longitude
+    )
     LocationState.PermissionDenied -> "Location permission denied"
     LocationState.Error -> "Unable to get location"
 }

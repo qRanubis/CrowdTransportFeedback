@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface FeedbackDao {
-
     @Query("SELECT * FROM feedback WHERE syncState != 'PENDING_DELETE' ORDER BY createdAt DESC")
     fun getAll(): Flow<List<FeedbackEntity>>
 
@@ -49,7 +48,9 @@ interface FeedbackDao {
             transportType = :transportType,
             crowdingScore = :crowdingScore,
             cleanlinessScore = :cleanlinessScore,
-            punctualityScore = :punctualityScore
+            punctualityScore = :punctualityScore,
+            createdByUserId = :createdByUserId,
+            createdByUsername = :createdByUsername
         WHERE feedbackId = :feedbackId AND syncState = 'SYNCED'
         """
     )
@@ -62,13 +63,19 @@ interface FeedbackDao {
         line: String?,
         createdAt: Long,
         transportType: com.example.crowdtransportfeedback.domain.TransportType?,
-        crowdingScore: Int?, cleanlinessScore: Int?, punctualityScore: Int?
+        crowdingScore: Int?,
+        cleanlinessScore: Int?,
+        punctualityScore: Int?,
+        createdByUserId: String?,
+        createdByUsername: String?
     ): Int
 
     @Query("DELETE FROM feedback WHERE syncState = 'SYNCED'")
     suspend fun deleteAllSynced()
+
     @Query("DELETE FROM feedback")
     suspend fun deleteAll()
+
     @Query("DELETE FROM feedback WHERE localId = :localId")
     suspend fun deleteByLocalId(localId: Long)
 
@@ -89,7 +96,9 @@ interface FeedbackDao {
                 transportType = item.transportType,
                 crowdingScore = item.crowdingScore,
                 cleanlinessScore = item.cleanlinessScore,
-                punctualityScore = item.punctualityScore
+                punctualityScore = item.punctualityScore,
+                createdByUserId = item.createdByUserId,
+                createdByUsername = item.createdByUsername
             )
             if (updated == 0) {
                 insertRemote(item)
@@ -103,5 +112,4 @@ interface FeedbackDao {
             deleteSyncedNotInServer(serverIds)
         }
     }
-
 }

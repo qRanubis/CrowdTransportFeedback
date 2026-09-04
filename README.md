@@ -1,235 +1,77 @@
-#  CrowdTransportFeedback
+# CrowdTransportFeedback — Milestone 4
 
-**Crowdsourcing App for Mapping Trust Levels in Public Transport**
+CrowdTransportFeedback is an offline-first Android application backed by one modular Spring Boot monolith. Android persists feedback in Room and synchronizes it through WorkManager; the backend owns authentication, authorization, feedback ownership, validation, and PostgreSQL persistence.
 
-Android application for collecting user feedback about public transport services, featuring offline-first storage, mandatory GPS location, REST API synchronization and admin moderation.
+## Architecture
 
----
+- `app/`: Kotlin/Jetpack Compose Android client. Room schema **version 5** retains distributed `feedbackId` UUIDs, local-only `localId`, tombstones, and `PENDING_DELETE -> PENDING_CREATE -> reconciliation` synchronization. Authenticated local feedback stores nullable `createdByUserId` and `createdByUsername` provenance.
+- `backend/`: Java 21, Maven, Spring Boot, Web, Security, Data JPA, Validation, Flyway, Actuator, JJWT, and PostgreSQL. It remains one modular monolith with `auth`, `security`, `user`, `feedback`, and `common` packages, not microservices.
+- `docker-compose.yml`: PostgreSQL runs on host port 5434 and the backend on port 8080, with a persistent named database volume.
 
-## Application Overview
+## Authentication, users, and authorization
 
-The application allows users to submit feedback regarding public transport (bus, metro, etc.) by providing:
+Registration always creates a `USER`. Email addresses are normalized with trim + lowercase. New registrations use the project-specific rule that the address must end with a dot followed by exactly 2 or 3 letters, for example `.ro`, `.it`, or `.com`; one-letter and 4+-letter endings are rejected on both Android and backend. Login keeps a broader syntactic email check so existing development accounts such as `.local` remain usable. Registration passwords require at least 8 characters and must contain at least one lowercase letter, one uppercase letter, one digit, and one symbol.
 
-- a score 
-- a textual comment
-- the transport line
-- GPS location (mandatory)
+Each account also has a permanent public username chosen at registration. Usernames are unique, 3–20 characters long, and contain only lowercase ASCII letters and digits (`^[a-z0-9]{3,20}$`). Existing development users are backfilled by Flyway migration `V3__add_usernames.sql`. Public feedback displays the username rather than exposing the author email address.
 
-Feedback can be stored locally (offline) and synchronized with a REST server when available.
+Login and registration return a short-lived access JWT plus an opaque rotating refresh token. Refresh sessions use a configurable sliding inactivity window, and only token hashes are stored by the backend. Successful login or registration schedules the existing unique one-time WorkManager synchronization.
 
----
+Roles are enforced on the backend. `USER` and `ADMIN` may read and create feedback. A feedback item may be deleted by its author or by an `ADMIN`; another `USER` cannot delete it. Feedback ownership always comes from the authenticated backend security context, never from client-provided ownership metadata.
 
-## Implemented Features
+An optional development ADMIN can be bootstrapped through the environment configuration documented in `.env.example`. There is no client-side promotion flow.
 
-- Feedback list screen
-- Feedback detail screen (score, comment, line, GPS, date)
-- Add feedback form
-- **Mandatory GPS integration**
-- Local persistence using Room
-- REST API communication using **Retrofit**
-- Offline-first, eventually consistent synchronization strategy
-- Durable automatic retry with AndroidX WorkManager
-- Admin-only delete functionality
-- MVVM architecture
-- UI built with Jetpack Compose
+## Structured feedback and overall rating
 
----
+A new feedback item requires:
 
-## Tech Stack
+- transport type and a valid line from the Bucharest transit catalog;
+- punctuality rating from 1 to 5;
+- cleanliness rating from 1 to 5;
+- crowding-comfort rating from 1 to 5, where 1 means very crowded/poor and 5 means plenty of space/good;
+- GPS coordinates;
+- an optional trimmed comment.
 
-- **Language**: Kotlin
-- **UI**: Jetpack Compose
-- **Architecture**: MVVM
-- **Local DB**: Room
-- **Networking**: Retrofit + Json
-- **Location**: Google Play Services Location
-- **State Management**: ViewModel + StateFlow
-- **Background work**: AndroidX WorkManager
+The user no longer enters a separate overall rating. The application derives it automatically as:
 
----
+`overallRating = (punctuality + cleanliness + crowdingComfort) / 3`
 
-# How to Run the Project
+The backend independently derives the same value instead of trusting a client-provided overall score. It rounds the result to one decimal place and stores that decimal value in PostgreSQL `feedback.score` as `DOUBLE PRECISION`, so ratings such as `3.7` are persisted instead of being rounded to integer `4`. Android displays the calculated value with one decimal place. The three component ratings remain the source of truth; the legacy local Room integer `score` is retained only as a compatibility fallback for older local rows.
 
-### 1️. Open the Android App
+## Android sessions and offline behavior
 
-1. Open the project in Android Studio
-2. Let Gradle sync
-3. Run the app on an Android Emulator
+Authentication credentials are stored in Android Keystore-backed encrypted preferences and excluded from backup/device transfer. An interceptor adds bearer access tokens, and the OkHttp authenticator performs automatic refresh. `SessionManager` serializes refreshes through a process-wide coroutine `Mutex` so concurrent requests do not rotate the same refresh token independently.
 
----
+A stored user session restores without login-screen flashing. Temporary refresh network/server failures retain the local session and permit offline use; definitive refresh rejection clears it. Explicit Logout performs best-effort server revocation but always clears the local session and returns to Login, including while offline.
 
-### 2️. GPS Configuration (IMPORTANT)
+New local feedback is stamped with the authenticated creator before persistence. A `PENDING_CREATE` row uploads only when that stored creator matches the currently authenticated user. Pending or otherwise unsynchronized feedback is visible only to its creator on the shared device; synchronized feedback remains globally visible to authenticated users. Switching accounts therefore neither exposes another user's unpublished pending feedback nor uploads it under the wrong account. Legacy ownerless pending rows remain unclaimed and hidden from other accounts.
 
-GPS is **mandatory** when adding feedback.
+If the original author returns, their pending feedback becomes visible again and can synchronize normally. The author can also delete their own pending feedback locally before upload. Synchronized deletes use the existing tombstone workflow and are authorized again by the backend.
 
-In Android Emulator:
+WorkManager keeps the existing unique one-time and periodic jobs, network constraints, exponential backoff, tombstone-first processing, pending-create upload, remote reconciliation, immediate local Save/Delete, uncertain-POST confirmation, and the process-wide synchronization mutex.
 
-1. Open Extended Controls
-2. Go to Location
-3. Set a location 
-4. Click Send
+## Database migrations
 
-If GPS is not set:
-- the app will not allow saving feedback
+- `V1__initial_schema.sql`: creates users, refresh sessions, and feedback tables.
+- `V2__align_feedback_rating_column_types.sql`: aligns feedback rating column types with the JPA model.
+- `V3__add_usernames.sql`: adds permanent unique usernames and safely backfills existing development users.
+- `V4__store_decimal_overall_score.sql`: converts PostgreSQL `feedback.score` to `DOUBLE PRECISION` and recalculates existing scores from the three component ratings to one decimal place.
 
----
+On Android, Room migration `4 -> 5` adds `createdByUsername` without discarding existing local feedback.
 
-### 3️. Offline Mode (No Server Required)
+## Local development
 
-You can fully test the app **without any server**:
+1. Copy `.env.example` to an untracked `.env` and provide your local development values.
+2. Run `docker compose config`, then `docker compose up --build`.
+3. Verify the backend health endpoint at `http://localhost:8080/actuator/health`.
 
-- Add feedback
-- Data is saved locally in Room
-- `syncState = PENDING_CREATE`
-- App continues to work normally
+The Windows host backend URL is `http://localhost:8080`. The Android emulator uses `http://10.0.2.2:8080/`. Cleartext HTTP is narrowly enabled only for that emulator-to-host development destination; production endpoints should use HTTPS.
 
-This demonstrates **offline-first behavior**.
+### One-time json-server development cutover
 
----
+json-server is no longer in the normal path. Prototype records have no authenticated ownership and are not imported or assigned silently. For the first full Milestone 4 test, use a fresh PostgreSQL development database and clear Android application data/reinstall if the device contains old json-server-era rows. This is a manual development cutover; application code does not wipe data automatically.
 
-##  REST API Server 
+## Tests and checks
 
-The app uses a simple REST API for synchronization.
+Backend verification uses `./mvnw test` and `./mvnw package` from `backend/`. Android verification uses `./gradlew testDebugUnitTest`, `./gradlew lintDebug`, `./gradlew assembleDebug`, and `./gradlew connectedDebugAndroidTest` from the project root, with an emulator required for connected tests.
 
-### Server Technology
-- `json-server`
-- `Node.js`
-
----
-
-### Start the Server
-
-#### Requirements
-- Node.js installed
-
-#### Commands
-
-```bash
-mkdir dir
-cd dir
-npm install
-npx json-server@0.17.4 --watch db.json --host 0.0.0.0 --port 3000
-```
-
----
-
-
-### Emulator Networking Note
-
-`0.0.0.0` is only the server bind address; do not open it in a browser.
-
-From the Windows host, open:
-
-`http://localhost:3000/feedback`
-
-Android Emulator cannot access the Windows host through `localhost`. From the
-Android Emulator, the app or browser uses:
-
-`http://10.0.2.2:3000/feedback`
-
-This maps to your local machine.
-
----
-
-### Synchronization Logic
-
-#### Upload (Local to Server)
-
-- Feedback is saved locally first
-- App attempts to `POST` data to the server
-- If successful: `syncState = SYNCED`
-- If server is unavailable: remains local
-- Failed uploads remain `PENDING_CREATE` and a connectivity-constrained worker retries them
-- Retries first look up the stable UUID on the server, so a timed-out POST cannot create a duplicate
-
-#### Download and reconciliation
-
-- Press **Sync now** to run the same complete sync pass used by background work
-- Server entries are inserted/updated locally
-- Deleted server entries are removed locally
-- Unsynchronized local creates and delete tombstones are preserved during reconciliation
-
-#### Deletion
-
-- A delete is first stored as a `PENDING_DELETE` tombstone and immediately hidden from normal lists
-- The server is deleted by the stable feedback UUID; both a successful response and HTTP 404 confirm deletion
-- Network/server failures retain the tombstone for automatic retry instead of losing it locally
-
-#### Automatic synchronization
-
-- One-time unique work is requested after a failed mutation and at application startup
-- A unique 15-minute periodic job provides a safety net without creating duplicate jobs
-- Both jobs require a connected network and use WorkManager exponential retry/backoff
-- Each pass processes pending deletes, pending creates, and finally the server download in that order
-  
----
-
-### Offline-First Strategy
-
-You can fully test the app without any server:
-
-- Add feedback
-- Data is saved locally in Room
-- `syncState = PENDING_CREATE`
-- App continues to work normally
-
----
-
-### Admin Mode
-
-The app supports **two roles**:
-
-#### User
-- Can add and view feedback
-- Cannot delete feedback
-
-#### Admin
-- Can delete feedback
-- Deletion propagates to server (if synced)
-
-#### Enable Admin Mode
-
-Set in code:
-
-```kotlin
-val isAdmin = true
-```
----
-### GPS Integration
-- Location permission requested at runtime
-- Saving feedback requires valid latitude & longitude
-- Coordinates are stored:
-  - locally (Room)
-  - remotely (REST API)
-
----
-
-### Project Structure
-
-```text
-app/
- ├─ data/
- │   ├─ local/        # Room entities, DAO, database
- │   ├─ remote/       # Retrofit API, DTOs
- │   └─ repository/   # Sync & business logic
- │
- ├─ ui/
- │   ├─ screens/      # Compose screens
- │   ├─ viewmodel/    # ViewModels
- │   └─ navigation/   # Navigation graph
- │
- └─ MainActivity.kt
-```
-
----
-### Author
-
-Vitregu Valentin-Rareș - SCPD
-
-## Milestone 3: structured transport feedback
-
-New reports use four mandatory clickable 1–5 ratings: **Overall trust** (very low to very high), crowding comfort (extremely crowded to plenty of space), cleanliness (very dirty to very clean), and punctuality (very poor to very good). Every scale consistently uses 1 as negative and 5 as positive. A report also requires an explicitly selected Bus, Night bus, Tram, Trolleybus, or Metro line from the static September 2026 Bucharest catalog; normal and night buses remain separate.
-
-Room database version 3 uses a non-destructive 2 → 3 migration. Legacy rows retain their identity, rating, comment, coordinates, line, timestamp, and sync state while new structured columns remain null. Legacy json-server records with missing structured properties also deserialize as null.
-
-Location captures one current point when a report is submitted (with last-known location only as fallback). The app does not continuously track trips and does not request background location. Validation requires all structured selections and an available location; comments are optional and trimmed. Saving is accepted after the row is persisted locally, while the unchanged Milestone 2 offline synchronization uploads and retries it separately.
+Milestone 4 manual integration testing also covers registration and username persistence, automatic login after registration, PostgreSQL ownership, calculated overall rating, offline logout, account-isolated pending feedback, synchronization when the creator returns, author delete, non-owner delete denial, and ADMIN delete visibility/authorization.
