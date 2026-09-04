@@ -109,9 +109,10 @@ class FeedbackServiceTest {
     }
 
     private AppUser proxyLikeUser(UUID userId, String username) {
+        String expectedUsername = username;
         AppUser user = new AppUser(userId, "user@example.com", username, "hash", Role.USER, Instant.now()) {
             @Override public UUID getId() { return userId; }
-            @Override public String getUsername() { return username; }
+            @Override public String getUsername() { return expectedUsername; }
         };
         user.id = null;
         user.username = null;
