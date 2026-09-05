@@ -27,7 +27,9 @@ data class FeedbackEntity(
     val cleanlinessScore: Int? = null,
     val punctualityScore: Int? = null,
     val createdByUserId: String? = null,
-    val createdByUsername: String? = null
+    val createdByUsername: String? = null,
+    val createdByAvatarKey: String? = null,
+    val rejectionReason: String? = null
 ) {
     fun overallRating(): Double {
         val ratings = listOf(punctualityScore, cleanlinessScore, crowdingScore)

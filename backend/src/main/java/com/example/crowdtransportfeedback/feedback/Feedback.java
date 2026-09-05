@@ -30,6 +30,9 @@ public class Feedback {
     @Column(nullable = false, length = 32)
     public String line;
 
+    @Column(name = "normalized_line", nullable = false, length = 32)
+    public String normalizedLine;
+
     @Column(name = "score", nullable = false)
     public double score;
 

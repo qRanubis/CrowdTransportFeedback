@@ -58,7 +58,9 @@ fun FeedbackListScreen(
                         style = MaterialTheme.typography.bodySmall
                     )
                     Text(
-                        text = item.syncState.displayName,
+                        text = if (item.syncState == SyncState.REJECTED) {
+                            "Rejected · ${rejectionReasonLabel(item.rejectionReason)}"
+                        } else item.syncState.displayName,
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -67,9 +69,15 @@ fun FeedbackListScreen(
     }
 }
 
+internal fun rejectionReasonLabel(reason: String?): String = when (reason) {
+    "feedback_cooldown" -> "Cooldown"
+    else -> "Synchronization rejected"
+}
+
 private val SyncState.displayName: String
     get() = when (this) {
         SyncState.PENDING_CREATE -> "Pending"
         SyncState.SYNCED -> "Synchronized"
         SyncState.PENDING_DELETE -> "Pending deletion"
+        SyncState.REJECTED -> "Rejected"
     }

@@ -6,7 +6,7 @@ import androidx.room.TypeConverters
 
 @Database(
     entities = [FeedbackEntity::class],
-    version = 5
+    version = 6
 )
 @TypeConverters(RoomConverters::class)
 abstract class AppDatabase : RoomDatabase() {

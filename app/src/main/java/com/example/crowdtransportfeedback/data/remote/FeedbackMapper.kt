@@ -36,5 +36,6 @@ fun FeedbackDto.toEntity(syncState: SyncState = SyncState.SYNCED): FeedbackEntit
         cleanlinessScore = cleanlinessScore,
         punctualityScore = punctualityScore,
         createdByUserId = createdByUserId,
-        createdByUsername = createdByUsername
+        createdByUsername = createdByUsername,
+        createdByAvatarKey = createdByAvatarKey
     )

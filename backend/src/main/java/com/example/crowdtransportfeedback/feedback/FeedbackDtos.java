@@ -35,6 +35,7 @@ public final class FeedbackDtos {
         String id,
         UUID createdByUserId,
         String createdByUsername,
+        String createdByAvatarKey,
         TransportType transportType,
         String line,
         double score,
@@ -45,6 +46,8 @@ public final class FeedbackDtos {
         String comment,
         double latitude,
         double longitude,
-        long createdAt
+        long createdAt,
+        int xpAwarded,
+        java.util.List<String> newAchievements
     ) {}
 }

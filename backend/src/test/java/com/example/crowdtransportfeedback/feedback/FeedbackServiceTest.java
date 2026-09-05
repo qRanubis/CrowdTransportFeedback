@@ -4,6 +4,7 @@ import com.example.crowdtransportfeedback.common.ApiException;
 import com.example.crowdtransportfeedback.user.AppUser;
 import com.example.crowdtransportfeedback.user.Role;
 import com.example.crowdtransportfeedback.user.UserRepository;
+import com.example.crowdtransportfeedback.gamification.GamificationService;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -17,7 +18,8 @@ import static org.mockito.Mockito.*;
 class FeedbackServiceTest {
     FeedbackRepository repository = mock(FeedbackRepository.class);
     UserRepository users = mock(UserRepository.class);
-    FeedbackService service = new FeedbackService(repository, users);
+    GamificationService gamification = mock(GamificationService.class);
+    FeedbackService service = new FeedbackService(repository, users, gamification);
     UUID owner = UUID.randomUUID();
     UUID id = UUID.randomUUID();
 
@@ -29,6 +31,7 @@ class FeedbackServiceTest {
     void setup() {
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(users.getReferenceById(owner)).thenReturn(proxyLikeUser(owner, "owner1"));
+        when(gamification.award(any(), any())).thenReturn(new GamificationService.Award(0, java.util.List.of()));
     }
 
     @Test
@@ -36,6 +39,7 @@ class FeedbackServiceTest {
         var created = service.create(request, owner);
         assertEquals(owner, created.createdByUserId());
         assertEquals("owner1", created.createdByUsername());
+        assertEquals("NAVIGATOR", created.createdByAvatarKey());
         assertEquals(3.7, created.overallRating(), 0.0001);
         assertEquals(3.7, created.score(), 0.0001);
         verify(repository).save(any());
@@ -71,6 +75,7 @@ class FeedbackServiceTest {
         when(repository.findById(id)).thenReturn(Optional.of(stored));
         service.delete(id, UUID.randomUUID(), "ADMIN");
         verify(repository).delete(stored);
+        verify(gamification).revoke(stored.owner, id);
     }
 
     @Test
@@ -113,9 +118,11 @@ class FeedbackServiceTest {
         AppUser user = new AppUser(userId, "user@example.com", username, "hash", Role.USER, Instant.now()) {
             @Override public UUID getId() { return userId; }
             @Override public String getUsername() { return expectedUsername; }
+            @Override public String getAvatarKey() { return "NAVIGATOR"; }
         };
         user.id = null;
         user.username = null;
+        user.avatarKey = "COMMUTER";
         return user;
     }
 }

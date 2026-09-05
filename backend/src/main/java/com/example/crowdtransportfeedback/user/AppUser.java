@@ -31,6 +31,9 @@ public class AppUser {
     @Column(name = "created_at", nullable = false)
     public Instant createdAt;
 
+    @Column(name = "avatar_key", nullable = false, length = 24)
+    public String avatarKey = "COMMUTER";
+
     protected AppUser() {}
 
     public AppUser(UUID id, String email, String username, String hash, Role role, Instant at) {
@@ -52,6 +55,10 @@ public class AppUser {
 
     public String getUsername() {
         return username;
+    }
+
+    public String getAvatarKey() {
+        return avatarKey;
     }
 
     private static String generatedUsername(UUID id) {

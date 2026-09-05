@@ -9,6 +9,7 @@ import com.example.crowdtransportfeedback.data.local.SyncState
 import com.example.crowdtransportfeedback.data.remote.FeedbackApi
 import com.example.crowdtransportfeedback.data.remote.FeedbackDto
 import com.example.crowdtransportfeedback.data.remote.toEntity
+import com.example.crowdtransportfeedback.domain.TransportType
 import java.io.IOException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -27,6 +28,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import retrofit2.Response
+import retrofit2.HttpException
 
 @RunWith(AndroidJUnit4::class)
 class FeedbackRepositoryTest {
@@ -237,21 +239,73 @@ class FeedbackRepositoryTest {
         assertNull(database.feedbackDao().getByLocalIdOnce(localId)?.createdByUserId)
     }
 
+    @Test
+    fun localCooldownCanonicalizesLineAndIncludesPendingDelete() = runBlocking {
+        database.feedbackDao().insert(feedback("accepted", SyncState.PENDING_DELETE, line = " m   5 ", transportType = TransportType.METRO))
+        val error = runCatching { repository.addFeedback(feedback("new", line = "M 5", createdAt = 1_700_000_000_000 + 29 * 60_000, transportType = TransportType.METRO)) }.exceptionOrNull()
+        assertEquals("feedback_cooldown", error?.message)
+    }
+
+    @Test
+    fun rejectedFeedbackDoesNotExtendLocalCooldownAndCanBeDeletedLocally() = runBlocking {
+        val rejectedId = database.feedbackDao().insert(feedback("rejected", SyncState.REJECTED, transportType = TransportType.METRO))
+        assertTrue(repository.addFeedback(feedback("allowed", createdAt = 1_700_000_000_000 + 1_000, transportType = TransportType.METRO)) > 0)
+        repository.deleteFeedback(rejectedId)
+        assertNull(database.feedbackDao().getByLocalIdOnce(rejectedId))
+    }
+
+    @Test
+    fun exactlyThirtyMinutesIsAllowedLocally() = runBlocking {
+        database.feedbackDao().insert(feedback("accepted", SyncState.SYNCED, transportType = TransportType.METRO))
+        assertTrue(repository.addFeedback(feedback("boundary", createdAt = 1_700_000_000_000 + 30 * 60_000, transportType = TransportType.METRO)) > 0)
+    }
+
+    @Test
+    fun immediateCooldownConflictIsRemovedWhileOfflineConflictRemainsRejected() = runBlocking {
+        api.nextConflictCode = "feedback_cooldown"
+        val immediateError = runCatching {
+            repository.addFeedbackAndUpload(feedback("immediate-cooldown"))
+        }.exceptionOrNull()
+        assertEquals("feedback_cooldown", immediateError?.message)
+        assertTrue(repository.getAllFeedback().first().none { it.feedbackId == "immediate-cooldown" })
+
+        api.networkAvailable = false
+        val cooldown = repository.addFeedbackAndUpload(feedback("offline-cooldown"))
+        assertEquals(SyncState.PENDING_CREATE, database.feedbackDao().getByLocalIdOnce(cooldown)?.syncState)
+        api.networkAvailable = true
+        api.nextConflictCode = "feedback_cooldown"
+        repository.synchronize()
+        assertEquals(SyncState.REJECTED, database.feedbackDao().getByLocalIdOnce(cooldown)?.syncState)
+        assertEquals("feedback_cooldown", database.feedbackDao().getByLocalIdOnce(cooldown)?.rejectionReason)
+        repository.synchronize()
+        assertEquals(SyncState.REJECTED, database.feedbackDao().getByLocalIdOnce(cooldown)?.syncState)
+        assertEquals(0, api.added.count { it.id == "offline-cooldown" })
+
+        api.nextConflictCode = "feedback_id_conflict"
+        val idConflict = repository.addFeedbackAndUpload(feedback("id-conflict"))
+        assertEquals(SyncState.PENDING_CREATE, database.feedbackDao().getByLocalIdOnce(idConflict)?.syncState)
+        assertNull(database.feedbackDao().getByLocalIdOnce(idConflict)?.rejectionReason)
+    }
+
     private fun feedback(
         feedbackId: String,
         syncState: SyncState = SyncState.PENDING_CREATE,
         comment: String = "Comment",
-        createdByUserId: String? = USER_A
+        createdByUserId: String? = USER_A,
+        line: String = "41",
+        createdAt: Long = 1_700_000_000_000,
+        transportType: TransportType? = null
     ) = FeedbackEntity(
         feedbackId = feedbackId,
         score = 4,
         comment = comment,
         latitude = 44.4268,
         longitude = 26.1025,
-        line = "41",
-        createdAt = 1_700_000_000_000,
+        line = line,
+        createdAt = createdAt,
         syncState = syncState,
-        createdByUserId = createdByUserId
+        createdByUserId = createdByUserId,
+        transportType = transportType
     )
 
     private fun feedbackDto(
@@ -279,6 +333,7 @@ private class RecordingFeedbackApi : FeedbackApi {
     var networkAvailable = true
     var getByIdDelayMillis = 0L
     var failNextAddAfterPersist = false
+    var nextConflictCode: String? = null
     var remote: List<FeedbackDto> = emptyList()
     val added = mutableListOf<FeedbackDto>()
     val deleted = mutableListOf<String>()
@@ -299,6 +354,10 @@ private class RecordingFeedbackApi : FeedbackApi {
 
     override suspend fun add(item: FeedbackDto): FeedbackDto {
         requireNetwork()
+        nextConflictCode?.let { code ->
+            nextConflictCode = null
+            throw HttpException(Response.error<FeedbackDto>(409, "{\"code\":\"$code\"}".toResponseBody()))
+        }
         added += item
         remote += item
         if (failNextAddAfterPersist) {

@@ -2,6 +2,7 @@ package com.example.crowdtransportfeedback.feedback;
 
 import com.example.crowdtransportfeedback.common.ApiException;
 import com.example.crowdtransportfeedback.user.UserRepository;
+import com.example.crowdtransportfeedback.gamification.GamificationService;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -15,10 +16,12 @@ import static com.example.crowdtransportfeedback.feedback.FeedbackDtos.Response;
 public class FeedbackService {
     private final FeedbackRepository feedback;
     private final UserRepository users;
+    private final GamificationService gamification;
 
-    FeedbackService(FeedbackRepository feedback, UserRepository users) {
+    FeedbackService(FeedbackRepository feedback, UserRepository users, GamificationService gamification) {
         this.feedback = feedback;
         this.users = users;
+        this.gamification = gamification;
     }
 
     @Transactional(readOnly = true)
@@ -53,6 +56,8 @@ public class FeedbackService {
         entity.owner = users.getReferenceById(userId);
         entity.transportType = request.transportType();
         entity.line = request.line().trim();
+        entity.normalizedLine = GamificationService.normalizeLine(request.line());
+        gamification.enforceCooldown(userId, entity.transportType + ":" + entity.normalizedLine, request.createdAt());
         entity.punctualityScore = request.punctualityScore();
         entity.cleanlinessScore = request.cleanlinessScore();
         entity.crowdingScore = request.crowdingScore();
@@ -65,7 +70,9 @@ public class FeedbackService {
         entity.latitude = request.latitude();
         entity.longitude = request.longitude();
         entity.createdAt = request.createdAt();
-        return out(feedback.save(entity));
+        Feedback saved=feedback.save(entity);
+        var award=gamification.award(saved.owner,saved);
+        return out(saved,award.xpAwarded(),award.newAchievements());
     }
 
     @Transactional
@@ -84,6 +91,7 @@ public class FeedbackService {
             );
         }
 
+        gamification.revoke(entity.owner, entity.feedbackId);
         feedback.delete(entity);
     }
 
@@ -111,11 +119,15 @@ public class FeedbackService {
     }
 
     private Response out(Feedback entity) {
+        return out(entity,0,List.of());
+    }
+    private Response out(Feedback entity,int xpAwarded,List<String> newAchievements) {
         return new Response(
             entity.feedbackId,
             entity.feedbackId.toString(),
             entity.owner.getId(),
             entity.owner.getUsername(),
+            entity.owner.getAvatarKey(),
             entity.transportType,
             entity.line,
             entity.score,
@@ -126,7 +138,9 @@ public class FeedbackService {
             entity.comment,
             entity.latitude,
             entity.longitude,
-            entity.createdAt
+            entity.createdAt,
+            xpAwarded,
+            newAchievements
         );
     }
 }

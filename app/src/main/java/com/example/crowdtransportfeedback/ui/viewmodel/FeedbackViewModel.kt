@@ -17,6 +17,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class FeedbackViewModel(private val repo: FeedbackRepository) : ViewModel() {
+    /** Server-issued award events only; Android never derives XP or achievements. */
+    val gamificationAwards = repo.awards
     val feedbackList: StateFlow<List<FeedbackEntity>> = repo.getAllFeedback().stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5000),
@@ -70,7 +72,7 @@ class FeedbackViewModel(private val repo: FeedbackRepository) : ViewModel() {
 
         viewModelScope.launch {
             try {
-                repo.addFeedback(
+                repo.addFeedbackAndUpload(
                     FeedbackEntity(
                         score = overall.roundToInt(),
                         comment = state.trimmedComment(),
@@ -88,7 +90,10 @@ class FeedbackViewModel(private val repo: FeedbackRepository) : ViewModel() {
                 _formState.value = FeedbackFormState()
                 onPersisted()
             } catch (error: Exception) {
-                _formState.value = state.copy(isSubmitting = false, error = "Unable to save feedback")
+                val message = if (error.message == "feedback_cooldown") {
+                    "You can submit feedback for this line once every 30 minutes."
+                } else "Unable to save feedback"
+                _formState.value = state.copy(isSubmitting = false, error = message)
             }
         }
     }

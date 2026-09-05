@@ -1,6 +1,7 @@
 package com.example.crowdtransportfeedback.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -146,7 +147,11 @@ fun AccountBar(
     username: String,
     email: String,
     role: String,
-    session: SessionManager
+    session: SessionManager,
+    onProfile: () -> Unit = {},
+    showBack: Boolean = false,
+    onBack: () -> Unit = {},
+    avatarKey: String = "COMMUTER"
 ) {
     val scope = rememberCoroutineScope()
 
@@ -154,12 +159,16 @@ fun AccountBar(
         Modifier.fillMaxWidth().padding(8.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Column {
-            Text(if (username.isBlank()) email else "@$username")
-            if (username.isNotBlank()) {
-                Text(email, style = MaterialTheme.typography.labelSmall)
+        if (showBack) {
+            TextButton(onClick = onBack) { Text("← Back") }
+        } else {
+            Column(Modifier.clickable(onClick = onProfile)) {
+                Text("${avatarSymbol(avatarKey)} ${if (username.isBlank()) email else "@$username"}")
+                if (username.isNotBlank()) {
+                    Text(email, style = MaterialTheme.typography.labelSmall)
+                }
+                Text(role, style = MaterialTheme.typography.labelSmall)
             }
-            Text(role, style = MaterialTheme.typography.labelSmall)
         }
 
         TextButton(onClick = { scope.launch { session.logout() } }) {
