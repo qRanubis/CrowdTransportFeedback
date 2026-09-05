@@ -1,4 +1,11 @@
-SELECT CASE WHEN current_database() = 'crowd_feedback_eval' THEN 1 ELSE 1/0 END AS evaluation_database_guard;
+DO $$
+BEGIN
+    IF current_database() <> 'crowd_feedback_eval' THEN
+        RAISE EXCEPTION 'M9 evaluation database safety guard failed';
+    END IF;
+END
+$$;
+SELECT set_config('m9.row_count', :'row_count', false);
 INSERT INTO app_user(id,email,username,password_hash,role,created_at,avatar_key)
 SELECT ('00000000-0000-4000-8000-' || lpad(i::text,12,'0'))::uuid,
        'm9eval'||i||'@example.test','m9user'||lpad(i::text,3,'0'),'not-a-login-hash','USER',TIMESTAMPTZ '2026-01-01 00:00:00+00','COMMUTER'
@@ -10,4 +17,12 @@ SELECT ('10000000-0000-4000-8000-' || lpad(i::text,12,'0'))::uuid,
  44.4268 + ((i-1)%5)*0.002,26.1025 + ((i-1)%4)*0.003,
  1768478400000 - ((i-1)%168)*3600000
 FROM generate_series(1,:row_count) i;
-SELECT CASE WHEN count(*) = :row_count THEN count(*) ELSE 1/0 END AS verified_feedback_count FROM feedback WHERE normalized_line='M9EVAL';
+DO $$
+BEGIN
+    IF (SELECT count(*) FROM feedback WHERE normalized_line = 'M9EVAL')
+       <> current_setting('m9.row_count')::bigint THEN
+        RAISE EXCEPTION 'M9 evaluation feedback count verification failed';
+    END IF;
+END
+$$;
+SELECT count(*) AS verified_feedback_count FROM feedback WHERE normalized_line='M9EVAL';
