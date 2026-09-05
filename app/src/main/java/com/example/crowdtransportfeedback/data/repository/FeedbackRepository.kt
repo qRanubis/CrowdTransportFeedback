@@ -108,6 +108,19 @@ class FeedbackRepository(
         deleteFeedback(localId)
     }
 
+    /** Administrative deletion is server-authoritative and never queued offline. */
+    suspend fun deleteFeedbackImmediatelyAsAdmin(localId: Long) {
+        val item = dao.getByLocalIdOnce(localId) ?: return
+        if (currentUserRole() != UserRole.ADMIN) {
+            throw SecurityException("Administrator role is required")
+        }
+        val response = api.delete(item.feedbackId)
+        when {
+            response.isSuccessful || response.code() == 404 -> dao.deleteByLocalId(localId)
+            else -> throw HttpException(response)
+        }
+    }
+
     suspend fun addFeedbackAndUpload(item: FeedbackEntity): Long {
         val creator = requireAuthenticatedCreator()
         enforceLocalCooldown(item, creator)

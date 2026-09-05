@@ -3,7 +3,8 @@ import com.example.crowdtransportfeedback.auth.UserRole; import org.junit.Assert
 import com.example.crowdtransportfeedback.domain.TransportType
 class AdminUiRulesTest {
  @Test fun `admin entry is role gated`(){assertTrue(canAccessAdmin(UserRole.ADMIN));assertFalse(canAccessAdmin(UserRole.USER))}
- @Test fun `own feedback cannot be reported`(){assertFalse(canReportFeedback("me","me",true));assertTrue(canReportFeedback("me","other",true));assertFalse(canReportFeedback("me","other",false))}
+ @Test fun `only users can report synchronized feedback by another user`(){assertFalse(canReportFeedback(UserRole.USER,"me","me",true));assertTrue(canReportFeedback(UserRole.USER,"me","other",true));assertFalse(canReportFeedback(UserRole.USER,"me","other",false));assertFalse(canReportFeedback(UserRole.ADMIN,"admin","other",true))}
+ @Test fun `admin entry is hidden on admin destination`(){assertTrue(shouldShowAdminEntry(UserRole.ADMIN,"list"));assertFalse(shouldShowAdminEntry(UserRole.ADMIN,"admin"));assertFalse(shouldShowAdminEntry(UserRole.USER,"list"))}
  @Test fun `other requires details and details are bounded`(){assertNotNull(reportValidationError("OTHER"," "));assertNotNull(reportValidationError("SPAM","x".repeat(251)));assertNull(reportValidationError("OTHER","context"))}
  @Test fun `report statuses have safe user labels`(){assertEquals("Reported · Pending review",reportStatusLabel("PENDING"));assertEquals("Reported · Reviewed",reportStatusLabel("DISMISSED"));assertEquals("Reported · Closed",reportStatusLabel("CLOSED"));assertEquals("Reported",reportStatusLabel(null))}
  @Test fun `pagination respects boundaries`(){assertFalse(canGoPrevious(0));assertTrue(canGoPrevious(1));assertTrue(canGoNext(0,2));assertFalse(canGoNext(1,2));assertFalse(canGoNext(0,0))}

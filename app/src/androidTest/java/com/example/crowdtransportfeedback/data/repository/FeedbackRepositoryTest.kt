@@ -10,6 +10,7 @@ import com.example.crowdtransportfeedback.data.remote.FeedbackApi
 import com.example.crowdtransportfeedback.data.remote.FeedbackDto
 import com.example.crowdtransportfeedback.data.remote.toEntity
 import com.example.crowdtransportfeedback.domain.TransportType
+import com.example.crowdtransportfeedback.auth.UserRole
 import java.io.IOException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -37,6 +38,7 @@ class FeedbackRepositoryTest {
     private lateinit var repository: FeedbackRepository
     private var scheduled = 0
     private var currentUserId: String? = USER_A
+    private var currentUserRole: UserRole? = UserRole.USER
 
     @Before
     fun setUp() {
@@ -47,11 +49,13 @@ class FeedbackRepositoryTest {
         api = RecordingFeedbackApi()
         scheduled = 0
         currentUserId = USER_A
+        currentUserRole = UserRole.USER
         repository = FeedbackRepository(
             dao = database.feedbackDao(),
             api = api,
             scheduleSync = { scheduled++ },
-            currentUserId = { currentUserId }
+            currentUserId = { currentUserId },
+            currentUserRole = { currentUserRole }
         )
     }
 
@@ -170,6 +174,56 @@ class FeedbackRepositoryTest {
 
         assertNull(database.feedbackDao().getByLocalIdOnce(localId))
         assertEquals(1, api.deleteCalls)
+    }
+
+    @Test
+    fun ownerDeleteRemainsDeferredAndOfflineFirst() = runBlocking {
+        val localId = database.feedbackDao().insert(feedback("owner-delete", SyncState.SYNCED))
+        api.remote += feedbackDto("owner-delete", "remote", USER_A)
+
+        repository.deleteFeedback(localId)
+
+        assertEquals(0, api.deleteCalls)
+        assertEquals(SyncState.PENDING_DELETE, database.feedbackDao().getByLocalIdOnce(localId)?.syncState)
+        assertEquals(1, scheduled)
+    }
+
+    @Test
+    fun adminDeleteCallsBackendImmediatelyAndRemovesLocalRow() = runBlocking {
+        currentUserRole = UserRole.ADMIN
+        val localId = database.feedbackDao().insert(feedback("admin-delete", SyncState.SYNCED, createdByUserId = USER_B))
+        api.remote += feedbackDto("admin-delete", "remote", USER_B)
+
+        repository.deleteFeedbackImmediatelyAsAdmin(localId)
+
+        assertEquals(1, api.deleteCalls)
+        assertNull(database.feedbackDao().getByLocalIdOnce(localId))
+        assertTrue(api.remote.none { it.id == "admin-delete" })
+        assertEquals(0, scheduled)
+    }
+
+    @Test
+    fun adminDeleteTreats404AsIdempotentSuccess() = runBlocking {
+        currentUserRole = UserRole.ADMIN
+        val localId = database.feedbackDao().insert(feedback("already-gone", SyncState.SYNCED, createdByUserId = USER_B))
+
+        repository.deleteFeedbackImmediatelyAsAdmin(localId)
+
+        assertEquals(1, api.deleteCalls)
+        assertNull(database.feedbackDao().getByLocalIdOnce(localId))
+    }
+
+    @Test
+    fun adminDeleteFailureKeepsLocalFeedbackForRetry() = runBlocking {
+        currentUserRole = UserRole.ADMIN
+        val localId = database.feedbackDao().insert(feedback("offline-admin", SyncState.SYNCED, createdByUserId = USER_B))
+        api.networkAvailable = false
+
+        val error = runCatching { repository.deleteFeedbackImmediatelyAsAdmin(localId) }.exceptionOrNull()
+
+        assertTrue(error is IOException)
+        assertEquals(SyncState.SYNCED, database.feedbackDao().getByLocalIdOnce(localId)?.syncState)
+        assertEquals(0, scheduled)
     }
 
     @Test

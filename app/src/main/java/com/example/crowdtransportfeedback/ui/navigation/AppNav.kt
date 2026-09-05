@@ -31,6 +31,7 @@ import com.example.crowdtransportfeedback.analytics.AnalyticsRepository
 import com.example.crowdtransportfeedback.data.remote.FeedbackApi
 import com.example.crowdtransportfeedback.admin.AdminApi
 import com.example.crowdtransportfeedback.admin.canAccessAdmin
+import com.example.crowdtransportfeedback.admin.shouldShowAdminEntry
 
 object Routes {
     const val LIST = "list"
@@ -70,6 +71,7 @@ private fun AuthenticatedNav(
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val isFeedbackList = backStackEntry?.destination?.route.let { it == null || it == Routes.LIST }
+    val currentRoute = backStackEntry?.destination?.route
     var avatarKey by remember(user.id) { mutableStateOf("COMMUTER") }
     LaunchedEffect(user.id) {
         runCatching { profileApi.me() }.onSuccess { avatarKey = it.avatarKey }
@@ -84,7 +86,7 @@ private fun AuthenticatedNav(
             showBack = !isFeedbackList,
             onBack = { navController.popBackStack() },
             avatarKey = avatarKey,
-            onAdmin = if (canAccessAdmin(user.role)) ({ navController.navigate(Routes.ADMIN) { launchSingleTop = true } }) else null
+            onAdmin = if (shouldShowAdminEntry(user.role, currentRoute)) ({ navController.navigate(Routes.ADMIN) { launchSingleTop = true } }) else null
         )
         NavHost(
             navController = navController,

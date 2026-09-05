@@ -34,6 +34,7 @@ fun FeedbackDetailScreen(
     var reportStatus by rememberSaveable(id) { mutableStateOf<String?>(null) }
     var reportOpen by rememberSaveable(id) { mutableStateOf(false) }
     var reportError by rememberSaveable(id) { mutableStateOf<String?>(null) }
+    var deleteError by rememberSaveable(id) { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -65,7 +66,7 @@ fun FeedbackDetailScreen(
             Text("Sync status: $syncLabel")
             Text("Local id: ${current.localId}")
 
-            val canReport = canReportFeedback(currentUserId, current.createdByUserId, current.syncState == SyncState.SYNCED)
+            val canReport = canReportFeedback(currentUserRole, currentUserId, current.createdByUserId, current.syncState == SyncState.SYNCED)
             LaunchedEffect(current.feedbackId, canReport) {
                 if (canReport) runCatching { feedbackApi.myReport(current.feedbackId) }.onSuccess { reportStatus = if (it.reported) it.status else null }
             }
@@ -79,12 +80,20 @@ fun FeedbackDetailScreen(
             val canDelete = canDeleteFeedback(currentUserRole, currentUserId, current.createdByUserId)
             if (canDelete) {
                 Spacer(modifier = Modifier.height(12.dp))
+                deleteError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 Button(
                     enabled = !isDeleting,
                     onClick = {
                         if (!isDeleting) {
                             isDeleting = true
-                            vm.deleteFeedback(id) { onBack() }
+                            if (currentUserRole == UserRole.ADMIN) {
+                                vm.deleteFeedbackImmediatelyAsAdmin(id) { success ->
+                                    if (success) onBack() else {
+                                        isDeleting = false
+                                        deleteError = "Administrator deletion requires a connection."
+                                    }
+                                }
+                            } else vm.deleteFeedback(id) { onBack() }
                         }
                     }
                 ) {

@@ -105,6 +105,10 @@ class FeedbackViewModel(private val repo: FeedbackRepository) : ViewModel() {
         onDone()
     }
 
+    fun deleteFeedbackImmediatelyAsAdmin(id: Long, onDone: (Boolean) -> Unit) = viewModelScope.launch {
+        onDone(runCatching { repo.deleteFeedbackImmediatelyAsAdmin(id) }.isSuccess)
+    }
+
     fun sync() {
         viewModelScope.launch {
             try {

@@ -3,7 +3,8 @@ import com.example.crowdtransportfeedback.auth.UserRole
 import com.example.crowdtransportfeedback.domain.BucharestTransitCatalog
 import com.example.crowdtransportfeedback.domain.TransportType
 fun canAccessAdmin(role:UserRole)=role==UserRole.ADMIN
-fun canReportFeedback(currentUserId:String,ownerUserId:String?,synchronized:Boolean)=synchronized&&ownerUserId!=currentUserId
+fun canReportFeedback(role:UserRole,currentUserId:String,ownerUserId:String?,synchronized:Boolean)=role==UserRole.USER&&synchronized&&ownerUserId!=currentUserId
+fun shouldShowAdminEntry(role:UserRole,currentRoute:String?)=role==UserRole.ADMIN&&currentRoute!="admin"
 fun reportValidationError(reason:String,details:String):String?=when{details.length>250->"Details must be at most 250 characters";reason=="OTHER"&&details.isBlank()->"Details are required for OTHER";else->null}
 fun reportStatusLabel(status:String?):String=when(status){"PENDING"->"Reported · Pending review";"DISMISSED"->"Reported · Reviewed";"CONFIRMED"->"Reported · Confirmed";"CLOSED"->"Reported · Closed";else->"Reported"}
 fun canGoPrevious(page:Int)=page>0
