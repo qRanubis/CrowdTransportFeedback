@@ -3,6 +3,7 @@ package com.example.crowdtransportfeedback.analytics;
 import com.example.crowdtransportfeedback.feedback.*;
 import java.time.*; import java.util.*; import java.util.function.ToDoubleFunction; import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class TrustAggregationService {
@@ -11,9 +12,11 @@ public class TrustAggregationService {
  public TrustAggregationService(FeedbackRepository repository){this(repository,Clock.systemUTC());}
  TrustAggregationService(FeedbackRepository repository,Clock clock){this.repository=repository;this.clock=clock;}
 
+ @Transactional(readOnly = true)
  public List<AnalyticsDtos.Cell> heatmap(AnalyticsMetric metric,TransportType type,String line,AnalyticsWindow window){
    return grouped(type,line,window).entrySet().stream().map(e->cell(e.getKey(),e.getValue(),metric)).sorted(Comparator.comparing(AnalyticsDtos.Cell::cellId)).toList();
  }
+ @Transactional(readOnly = true)
  public AnalyticsDtos.Area area(String cellId,AnalyticsMetric metric,TransportType type,String line,AnalyticsWindow window){
    GeoGrid.Cell geo=GeoGrid.fromId(cellId); if(geo==null) return null;
    List<Feedback> rows=grouped(type,line,window).get(cellId); if(rows==null) return null;

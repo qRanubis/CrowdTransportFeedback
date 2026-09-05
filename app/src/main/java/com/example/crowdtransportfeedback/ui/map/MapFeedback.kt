@@ -1,8 +1,19 @@
 package com.example.crowdtransportfeedback.ui.map
 
+import com.example.crowdtransportfeedback.analytics.AnalyticsFilter
+import com.example.crowdtransportfeedback.analytics.AnalyticsWindow
 import com.example.crowdtransportfeedback.data.local.FeedbackEntity
 import com.example.crowdtransportfeedback.data.local.SyncState
 import com.example.crowdtransportfeedback.domain.TransportType
+import kotlin.math.atan
+import kotlin.math.exp
+import kotlin.math.floor
+import kotlin.math.ln
+import kotlin.math.tan
+
+private const val WEB_MERCATOR_MAX_LATITUDE = 85.05112878
+private const val WEB_MERCATOR_RADIUS_METERS = 6_378_137.0
+private const val CELL_SIZE_METERS = 250.0
 
 data class MapFeedbackMarker(
     val localId: Long,
@@ -15,15 +26,75 @@ data class MapFeedbackMarker(
     val createdAt: Long
 )
 
-data class MapFeedbackGroup(val cellId:String,val latitude:Double,val longitude:Double,val feedback:List<MapFeedbackMarker>)
+data class MapFeedbackGroup(
+    val cellId: String,
+    val latitude: Double,
+    val longitude: Double,
+    val feedback: List<MapFeedbackMarker>
+)
 
-fun feedbackGroups(markers:List<MapFeedbackMarker>):List<MapFeedbackGroup> = markers.groupBy { geoCellId(it.latitude,it.longitude) }.map { (id, rows) ->
-    val center=geoCellCenter(id); MapFeedbackGroup(id,center.first,center.second,rows.sortedByDescending { it.createdAt })
+fun feedbackGroups(markers: List<MapFeedbackMarker>): List<MapFeedbackGroup> =
+    markers.mapNotNull { marker -> geoCellId(marker.latitude, marker.longitude)?.let { it to marker } }
+        .groupBy({ it.first }, { it.second })
+        .map { (id, rows) ->
+            val center = geoCellCenter(id)
+            MapFeedbackGroup(id, center.first, center.second, rows.sortedByDescending { it.createdAt })
+        }
+
+fun feedbackModeGroups(
+    feedback: List<FeedbackEntity>,
+    transportType: TransportType?,
+    line: String?
+): List<MapFeedbackGroup> = feedbackGroups(
+    feedback.mapNotNull(FeedbackEntity::toMapFeedbackMarker).filter { marker ->
+        (transportType == null || marker.transportType == transportType) &&
+            (line.isNullOrBlank() || marker.line.equals(line.trim(), ignoreCase = true))
+    }
+)
+
+/** Returns synchronized local feedback matching the exact authoritative analytics context. */
+fun analyticsAreaGroup(
+    feedback: List<FeedbackEntity>,
+    filter: AnalyticsFilter,
+    cellId: String,
+    nowMillis: Long
+): MapFeedbackGroup? {
+    val cutoff = when (filter.window) {
+        AnalyticsWindow.H24 -> nowMillis - 24L * 60 * 60 * 1_000
+        AnalyticsWindow.D7 -> nowMillis - 7L * 24 * 60 * 60 * 1_000
+        AnalyticsWindow.D30 -> nowMillis - 30L * 24 * 60 * 60 * 1_000
+        AnalyticsWindow.ALL -> Long.MIN_VALUE
+    }
+    val type = filter.transportType?.let(TransportType::valueOf)
+    val markers = feedback.mapNotNull(FeedbackEntity::toMapFeedbackMarker).filter { marker ->
+        geoCellId(marker.latitude, marker.longitude) == cellId &&
+            (type == null || marker.transportType == type) &&
+            (filter.line.isNullOrBlank() || marker.line.equals(filter.line.trim(), ignoreCase = true)) &&
+            marker.createdAt in cutoff..nowMillis
+    }
+    return feedbackGroups(markers).singleOrNull()
 }
 
-fun geoCellId(latitude:Double,longitude:Double):String { val r=6378137.0;val x=r*Math.toRadians(longitude);val y=r*kotlin.math.ln(kotlin.math.tan(Math.PI/4+Math.toRadians(latitude)/2));return "${kotlin.math.floor(x/250).toLong()}:${kotlin.math.floor(y/250).toLong()}" }
-fun geoCellCenter(id:String):Pair<Double,Double>{val (x,y)=id.split(":").map(String::toLong);val r=6378137.0;val mx=(x+.5)*250;val my=(y+.5)*250;return Math.toDegrees(2*kotlin.math.atan(kotlin.math.exp(my/r))-Math.PI/2) to Math.toDegrees(mx/r)}
-fun <T> newestPage(rows:List<T>,createdAt:(T)->Long,page:Int)=rows.sortedByDescending(createdAt).take(page*20)
+fun geoCellId(latitude: Double, longitude: Double): String? {
+    if (!latitude.isFinite() || !longitude.isFinite() ||
+        latitude !in -WEB_MERCATOR_MAX_LATITUDE..WEB_MERCATOR_MAX_LATITUDE ||
+        longitude !in -180.0..180.0
+    ) return null
+    val x = WEB_MERCATOR_RADIUS_METERS * Math.toRadians(longitude)
+    val y = WEB_MERCATOR_RADIUS_METERS * ln(tan(Math.PI / 4 + Math.toRadians(latitude) / 2))
+    return "${floor(x / CELL_SIZE_METERS).toLong()}:${floor(y / CELL_SIZE_METERS).toLong()}"
+}
+
+fun geoCellCenter(id: String): Pair<Double, Double> {
+    val (x, y) = id.split(":").map(String::toLong)
+    val meterX = (x + .5) * CELL_SIZE_METERS
+    val meterY = (y + .5) * CELL_SIZE_METERS
+    return Math.toDegrees(2 * atan(exp(meterY / WEB_MERCATOR_RADIUS_METERS)) - Math.PI / 2) to
+        Math.toDegrees(meterX / WEB_MERCATOR_RADIUS_METERS)
+}
+
+fun <T> newestPage(rows: List<T>, createdAt: (T) -> Long, page: Int): List<T> =
+    rows.sortedByDescending(createdAt).take(page * 20)
 
 enum class MapFilter(val label: String, val transportType: TransportType?) {
     ALL("All", null),
@@ -38,9 +109,7 @@ fun FeedbackEntity.toMapFeedbackMarker(): MapFeedbackMarker? {
     val lat = latitude ?: return null
     val lng = longitude ?: return null
     val type = transportType ?: return null
-    if (syncState != SyncState.SYNCED || !lat.isFinite() || !lng.isFinite() ||
-        lat !in -90.0..90.0 || lng !in -180.0..180.0
-    ) return null
+    if (syncState != SyncState.SYNCED || geoCellId(lat, lng) == null) return null
 
     return MapFeedbackMarker(
         localId = localId,
@@ -57,5 +126,5 @@ fun FeedbackEntity.toMapFeedbackMarker(): MapFeedbackMarker? {
 fun visibleMapMarkers(
     feedback: List<FeedbackEntity>,
     filter: MapFilter
-): List<MapFeedbackMarker> = feedback.mapNotNull(FeedbackEntity::toMapFeedbackMarker)
-    .filter { filter.transportType == null || it.transportType == filter.transportType }
+): List<MapFeedbackMarker> = feedbackModeGroups(feedback, filter.transportType, null)
+    .flatMap(MapFeedbackGroup::feedback)
