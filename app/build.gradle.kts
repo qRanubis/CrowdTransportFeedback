@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -9,9 +11,15 @@ plugins {
 val mapsApiKey = providers.gradleProperty("MAPS_API_KEY")
     .orElse(providers.provider {
         val localProperties = rootProject.file("local.properties")
-        if (localProperties.exists()) java.util.Properties().apply {
-            localProperties.inputStream().use(::load)
-        }.getProperty("MAPS_API_KEY", "") else ""
+        if (localProperties.exists()) {
+            Properties().apply {
+                localProperties.inputStream().use { input ->
+                    load(input)
+                }
+            }.getProperty("MAPS_API_KEY", "")
+        } else {
+            ""
+        }
     })
     .get()
     .trim()
