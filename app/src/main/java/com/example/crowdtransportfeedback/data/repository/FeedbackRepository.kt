@@ -49,6 +49,13 @@ class FeedbackRepository(
 
     fun getById(localId: Long) = dao.getByLocalId(localId)
 
+    /** Resolve a server UUID without duplicating storage; synchronize once if Room is stale. */
+    suspend fun resolveLocalId(feedbackId: String): Long? {
+        dao.getByFeedbackIdOnce(feedbackId)?.let { return it.localId }
+        synchronize()
+        return dao.getByFeedbackIdOnce(feedbackId)?.localId
+    }
+
     suspend fun synchronize(): SynchronizationResult = synchronizationMutex.withLock {
         var transientFailure = false
 
@@ -99,6 +106,19 @@ class FeedbackRepository(
 
     suspend fun deleteFeedbackAdmin(localId: Long) {
         deleteFeedback(localId)
+    }
+
+    /** Administrative deletion is server-authoritative and never queued offline. */
+    suspend fun deleteFeedbackImmediatelyAsAdmin(localId: Long) {
+        val item = dao.getByLocalIdOnce(localId) ?: return
+        if (currentUserRole() != UserRole.ADMIN) {
+            throw SecurityException("Administrator role is required")
+        }
+        val response = api.delete(item.feedbackId)
+        when {
+            response.isSuccessful || response.code() == 404 -> dao.deleteByLocalId(localId)
+            else -> throw HttpException(response)
+        }
     }
 
     suspend fun addFeedbackAndUpload(item: FeedbackEntity): Long {

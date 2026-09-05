@@ -22,6 +22,11 @@ class AchievementUiRulesTest {
         assertEquals("Cooldown", rejectionReasonLabel("feedback_cooldown"))
     }
 
+    @Test fun achievementSummaryUsesAuthoritativeListSize() {
+        val badges = (1..31).map { badge("A$it").copy(unlocked = it <= 4) }
+        assertEquals("Achievements 4 / 31", achievementSummary(badges))
+    }
+
     private fun badge(code: String, pinned: Boolean = false, order: Int? = null) =
         BadgeDto(code, code, "", "Contribution", true, null, 1, 1, pinned, order)
 }

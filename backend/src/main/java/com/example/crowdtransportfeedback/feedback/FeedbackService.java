@@ -3,11 +3,13 @@ package com.example.crowdtransportfeedback.feedback;
 import com.example.crowdtransportfeedback.common.ApiException;
 import com.example.crowdtransportfeedback.user.UserRepository;
 import com.example.crowdtransportfeedback.gamification.GamificationService;
+import com.example.crowdtransportfeedback.moderation.ReportLifecycle;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 import static com.example.crowdtransportfeedback.feedback.FeedbackDtos.Request;
 import static com.example.crowdtransportfeedback.feedback.FeedbackDtos.Response;
@@ -17,11 +19,17 @@ public class FeedbackService {
     private final FeedbackRepository feedback;
     private final UserRepository users;
     private final GamificationService gamification;
+    private final ReportLifecycle reports;
 
-    FeedbackService(FeedbackRepository feedback, UserRepository users, GamificationService gamification) {
+    @Autowired FeedbackService(FeedbackRepository feedback, UserRepository users, GamificationService gamification, ReportLifecycle reports) {
         this.feedback = feedback;
         this.users = users;
         this.gamification = gamification;
+        this.reports = reports;
+    }
+
+    FeedbackService(FeedbackRepository feedback, UserRepository users, GamificationService gamification) {
+        this(feedback, users, gamification, null);
     }
 
     @Transactional(readOnly = true)
@@ -77,6 +85,11 @@ public class FeedbackService {
 
     @Transactional
     public void delete(UUID id, UUID requesterId, String requesterRole) {
+        delete(id, requesterId, requesterRole, null);
+    }
+
+    @Transactional
+    public void delete(UUID id, UUID requesterId, String requesterRole, String moderationNote) {
         Feedback entity = feedback.findById(id).orElseThrow(() ->
             new ApiException(HttpStatus.NOT_FOUND, "feedback_not_found", "Feedback was not found")
         );
@@ -91,6 +104,11 @@ public class FeedbackService {
             );
         }
 
+        if (reports != null && admin) {
+            if (reports.hasPending(id)) reports.resolve(id, requesterId, true,
+                moderationNote == null ? "Direct administrator deletion" : moderationNote);
+            else reports.auditDelete(id, requesterId);
+        } else if (reports != null) reports.close(id);
         gamification.revoke(entity.owner, entity.feedbackId);
         feedback.delete(entity);
     }

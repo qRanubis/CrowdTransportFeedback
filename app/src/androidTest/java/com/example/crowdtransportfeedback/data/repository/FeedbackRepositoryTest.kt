@@ -10,6 +10,7 @@ import com.example.crowdtransportfeedback.data.remote.FeedbackApi
 import com.example.crowdtransportfeedback.data.remote.FeedbackDto
 import com.example.crowdtransportfeedback.data.remote.toEntity
 import com.example.crowdtransportfeedback.domain.TransportType
+import com.example.crowdtransportfeedback.auth.UserRole
 import java.io.IOException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -37,6 +38,7 @@ class FeedbackRepositoryTest {
     private lateinit var repository: FeedbackRepository
     private var scheduled = 0
     private var currentUserId: String? = USER_A
+    private var currentUserRole: UserRole? = UserRole.USER
 
     @Before
     fun setUp() {
@@ -47,11 +49,13 @@ class FeedbackRepositoryTest {
         api = RecordingFeedbackApi()
         scheduled = 0
         currentUserId = USER_A
+        currentUserRole = UserRole.USER
         repository = FeedbackRepository(
             dao = database.feedbackDao(),
             api = api,
             scheduleSync = { scheduled++ },
-            currentUserId = { currentUserId }
+            currentUserId = { currentUserId },
+            currentUserRole = { currentUserRole }
         )
     }
 
@@ -68,6 +72,25 @@ class FeedbackRepositoryTest {
         assertEquals(USER_A, api.added.single().createdByUserId)
         assertEquals(SyncState.SYNCED, stored?.syncState)
         assertEquals(USER_A, stored?.createdByUserId)
+    }
+
+    @Test
+    fun resolveLocalIdUsesExistingRoomRowWithoutSynchronization() = runBlocking {
+        val localId = database.feedbackDao().insert(feedback("already-local", SyncState.SYNCED))
+
+        assertEquals(localId, repository.resolveLocalId("already-local"))
+        assertEquals(0, api.getAllCalls)
+    }
+
+    @Test
+    fun resolveLocalIdSynchronizesMissingServerFeedbackAndReturnsInsertedRow() = runBlocking {
+        api.remote += feedbackDto("server-only", "remote", USER_B)
+
+        val localId = repository.resolveLocalId("server-only")
+
+        assertTrue(localId != null)
+        assertEquals("server-only", database.feedbackDao().getByLocalIdOnce(localId!!)?.feedbackId)
+        assertEquals(1, api.getAllCalls)
     }
 
     @Test
@@ -151,6 +174,56 @@ class FeedbackRepositoryTest {
 
         assertNull(database.feedbackDao().getByLocalIdOnce(localId))
         assertEquals(1, api.deleteCalls)
+    }
+
+    @Test
+    fun ownerDeleteRemainsDeferredAndOfflineFirst() = runBlocking {
+        val localId = database.feedbackDao().insert(feedback("owner-delete", SyncState.SYNCED))
+        api.remote += feedbackDto("owner-delete", "remote", USER_A)
+
+        repository.deleteFeedback(localId)
+
+        assertEquals(0, api.deleteCalls)
+        assertEquals(SyncState.PENDING_DELETE, database.feedbackDao().getByLocalIdOnce(localId)?.syncState)
+        assertEquals(1, scheduled)
+    }
+
+    @Test
+    fun adminDeleteCallsBackendImmediatelyAndRemovesLocalRow() = runBlocking {
+        currentUserRole = UserRole.ADMIN
+        val localId = database.feedbackDao().insert(feedback("admin-delete", SyncState.SYNCED, createdByUserId = USER_B))
+        api.remote += feedbackDto("admin-delete", "remote", USER_B)
+
+        repository.deleteFeedbackImmediatelyAsAdmin(localId)
+
+        assertEquals(1, api.deleteCalls)
+        assertNull(database.feedbackDao().getByLocalIdOnce(localId))
+        assertTrue(api.remote.none { it.id == "admin-delete" })
+        assertEquals(0, scheduled)
+    }
+
+    @Test
+    fun adminDeleteTreats404AsIdempotentSuccess() = runBlocking {
+        currentUserRole = UserRole.ADMIN
+        val localId = database.feedbackDao().insert(feedback("already-gone", SyncState.SYNCED, createdByUserId = USER_B))
+
+        repository.deleteFeedbackImmediatelyAsAdmin(localId)
+
+        assertEquals(1, api.deleteCalls)
+        assertNull(database.feedbackDao().getByLocalIdOnce(localId))
+    }
+
+    @Test
+    fun adminDeleteFailureKeepsLocalFeedbackForRetry() = runBlocking {
+        currentUserRole = UserRole.ADMIN
+        val localId = database.feedbackDao().insert(feedback("offline-admin", SyncState.SYNCED, createdByUserId = USER_B))
+        api.networkAvailable = false
+
+        val error = runCatching { repository.deleteFeedbackImmediatelyAsAdmin(localId) }.exceptionOrNull()
+
+        assertTrue(error is IOException)
+        assertEquals(SyncState.SYNCED, database.feedbackDao().getByLocalIdOnce(localId)?.syncState)
+        assertEquals(0, scheduled)
     }
 
     @Test
@@ -338,8 +411,10 @@ private class RecordingFeedbackApi : FeedbackApi {
     val added = mutableListOf<FeedbackDto>()
     val deleted = mutableListOf<String>()
     var deleteCalls = 0
+    var getAllCalls = 0
 
     override suspend fun getAll(): List<FeedbackDto> {
+        getAllCalls++
         requireNetwork()
         return remote
     }
@@ -377,6 +452,11 @@ private class RecordingFeedbackApi : FeedbackApi {
         deleted += id
         return Response.success(Unit)
     }
+
+    override suspend fun myReport(id: String) = FeedbackApi.MyReport(false, null)
+
+    override suspend fun report(id: String, request: FeedbackApi.ReportRequest): Response<Unit> =
+        Response.success(Unit)
 
     private fun requireNetwork() {
         if (!networkAvailable) throw IOException("offline")

@@ -72,7 +72,7 @@ fun AchievementsScreen(api: ProfileApi) {
         is RemoteState.Failed -> Text(current.message, color = MaterialTheme.colorScheme.error)
         is RemoteState.Ready -> LazyColumn(Modifier.padding(16.dp)) {
             val badges = current.value
-            item { Text("Achievements ${badges.count { it.unlocked }} / 28", style = MaterialTheme.typography.headlineMedium) }
+            item { Text(achievementSummary(badges), style = MaterialTheme.typography.headlineMedium) }
             badges.groupBy { it.category }.forEach { (category, list) ->
                 item { Text(category, style = MaterialTheme.typography.titleLarge) }
                 items(list) { badge ->
@@ -92,6 +92,9 @@ fun AchievementsScreen(api: ProfileApi) {
       }
     }
 }
+
+internal fun achievementSummary(badges: List<BadgeDto>): String =
+    "Achievements ${badges.count { it.unlocked }} / ${badges.size}"
 
 internal fun updatedPins(badges: List<BadgeDto>, tapped: BadgeDto): List<String>? {
     val pins = badges.filter { it.pinned }.sortedBy { it.pinOrder }.map { it.code }.toMutableList()

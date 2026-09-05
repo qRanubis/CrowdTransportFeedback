@@ -5,6 +5,7 @@ import com.example.crowdtransportfeedback.user.AppUser;
 import com.example.crowdtransportfeedback.user.Role;
 import com.example.crowdtransportfeedback.user.UserRepository;
 import com.example.crowdtransportfeedback.gamification.GamificationService;
+import com.example.crowdtransportfeedback.moderation.ReportLifecycle;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -19,7 +20,8 @@ class FeedbackServiceTest {
     FeedbackRepository repository = mock(FeedbackRepository.class);
     UserRepository users = mock(UserRepository.class);
     GamificationService gamification = mock(GamificationService.class);
-    FeedbackService service = new FeedbackService(repository, users, gamification);
+    ReportLifecycle reports = mock(ReportLifecycle.class);
+    FeedbackService service = new FeedbackService(repository, users, gamification, reports);
     UUID owner = UUID.randomUUID();
     UUID id = UUID.randomUUID();
 
@@ -94,6 +96,34 @@ class FeedbackServiceTest {
             "feedback_not_found",
             assertThrows(ApiException.class, () -> service.delete(id, owner, "USER")).code
         );
+    }
+
+
+    @Test
+    void authorDeleteClosesPendingReports() {
+        Feedback stored = entity(owner); when(repository.findById(id)).thenReturn(Optional.of(stored));
+        service.delete(id, owner, "USER");
+        verify(reports).close(id); verify(repository).delete(stored); verify(gamification).revoke(stored.owner, id);
+    }
+
+    @Test
+    void adminDirectDeleteConfirmsPendingReports() {
+        UUID admin = UUID.randomUUID(); Feedback stored = entity(owner); when(repository.findById(id)).thenReturn(Optional.of(stored)); when(reports.hasPending(id)).thenReturn(true);
+        service.delete(id, admin, "ADMIN");
+        verify(reports).resolve(id, admin, true, "Direct administrator deletion"); verify(repository).delete(stored);
+    }
+
+    @Test
+    void moderationDeletePreservesSuppliedNote() {
+        UUID admin = UUID.randomUUID(); Feedback stored = entity(owner); when(repository.findById(id)).thenReturn(Optional.of(stored)); when(reports.hasPending(id)).thenReturn(true);
+        service.delete(id, admin, "ADMIN", "reviewed evidence");
+        verify(reports).resolve(id, admin, true, "reviewed evidence");
+    }
+
+    @Test
+    void adminDeleteWithoutReportsWritesNormalAudit() {
+        UUID admin = UUID.randomUUID(); Feedback stored = entity(owner); when(repository.findById(id)).thenReturn(Optional.of(stored));
+        service.delete(id, admin, "ADMIN"); verify(reports).auditDelete(id, admin);
     }
 
     private Feedback entity(UUID userId) {

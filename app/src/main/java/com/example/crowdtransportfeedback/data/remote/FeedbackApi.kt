@@ -9,6 +9,8 @@ import retrofit2.http.Path
 import retrofit2.Response
 
 interface FeedbackApi {
+    data class ReportRequest(val reason: String, val details: String?)
+    data class MyReport(val reported: Boolean, val status: String?)
     @GET("api/feedback")
     suspend fun getAll(): List<FeedbackDto>
 
@@ -20,6 +22,12 @@ interface FeedbackApi {
 
     @DELETE("api/feedback/{id}")
     suspend fun delete(@Path("id") id: String): Response<Unit>
+
+    @GET("api/feedback/{id}/reports/me")
+    suspend fun myReport(@Path("id") id: String): MyReport
+
+    @POST("api/feedback/{id}/reports")
+    suspend fun report(@Path("id") id: String, @Body request: ReportRequest): Response<Unit>
 
 
 }

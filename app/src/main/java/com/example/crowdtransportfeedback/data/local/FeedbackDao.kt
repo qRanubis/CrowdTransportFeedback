@@ -18,6 +18,9 @@ interface FeedbackDao {
     @Query("SELECT * FROM feedback WHERE localId = :localId")
     suspend fun getByLocalIdOnce(localId: Long): FeedbackEntity?
 
+    @Query("SELECT * FROM feedback WHERE feedbackId = :feedbackId LIMIT 1")
+    suspend fun getByFeedbackIdOnce(feedbackId: String): FeedbackEntity?
+
     @Query("SELECT * FROM feedback WHERE syncState != 'SYNCED' ORDER BY createdAt ASC")
     suspend fun getPending(): List<FeedbackEntity>
 

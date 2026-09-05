@@ -41,7 +41,9 @@ class MainActivity : ComponentActivity() {
                     authRepository = app.services.authRepository,
                     sessionManager = sessionManager,
                     profileApi = app.services.network.profileApi,
-                    analyticsRepository = AnalyticsRepository(app.services.network.analyticsApi)
+                    analyticsRepository = AnalyticsRepository(app.services.network.analyticsApi),
+                    feedbackApi = app.services.network.feedbackApi,
+                    adminApi = app.services.network.adminApi
                 )
             }
         }

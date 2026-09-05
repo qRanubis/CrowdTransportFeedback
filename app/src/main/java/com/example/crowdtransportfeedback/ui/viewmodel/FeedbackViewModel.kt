@@ -30,6 +30,8 @@ class FeedbackViewModel(private val repo: FeedbackRepository) : ViewModel() {
 
     fun getFeedbackById(id: Long) = repo.getById(id)
 
+    suspend fun resolveFeedbackLocalId(feedbackId: String): Long? = repo.resolveLocalId(feedbackId)
+
     fun setCrowding(value: Int) = updateRating(value) { copy(crowdingScore = value) }
     fun setCleanliness(value: Int) = updateRating(value) { copy(cleanlinessScore = value) }
     fun setPunctuality(value: Int) = updateRating(value) { copy(punctualityScore = value) }
@@ -101,6 +103,10 @@ class FeedbackViewModel(private val repo: FeedbackRepository) : ViewModel() {
     fun deleteFeedback(id: Long, onDone: () -> Unit) = viewModelScope.launch {
         repo.deleteFeedback(id)
         onDone()
+    }
+
+    fun deleteFeedbackImmediatelyAsAdmin(id: Long, onDone: (Boolean) -> Unit) = viewModelScope.launch {
+        onDone(runCatching { repo.deleteFeedbackImmediatelyAsAdmin(id) }.isSuccess)
     }
 
     fun sync() {
