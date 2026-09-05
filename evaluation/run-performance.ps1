@@ -23,12 +23,32 @@ function JavaVersionText(){
  if($javaExitCode -ne 0){return "unavailable (java exit code $javaExitCode)"}
  return (@($nativeOutput|ForEach-Object{$_.ToString()})|Select-Object -First 1) -replace '[\r\n]',' '
 }
+function EvaluationContainerIds(){
+ $previousPreference=$ErrorActionPreference
+ try{$ErrorActionPreference='Continue';$nativeOutput=& docker container ls --all --quiet --filter "name=^/$container`$" 2>&1;$dockerExitCode=$LASTEXITCODE}
+ finally{$ErrorActionPreference=$previousPreference}
+ if($dockerExitCode -ne 0){throw "Docker could not inspect the temporary evaluation container (exit code $dockerExitCode)."}
+ return @($nativeOutput|ForEach-Object{$_.ToString().Trim()}|Where-Object{$_ -match '^[0-9a-f]{12,64}$'})
+}
+function RemoveEvaluationContainerIfExists(){
+ $containerIds=@(EvaluationContainerIds)
+ if(!$containerIds.Count){return}
+ $previousPreference=$ErrorActionPreference
+ try{$ErrorActionPreference='Continue';$nativeOutput=& docker rm -f $container 2>&1;$dockerExitCode=$LASTEXITCODE}
+ finally{$ErrorActionPreference=$previousPreference}
+ if($dockerExitCode -ne 0){
+  # A container using --rm may disappear between the exact-name check and rm.
+  # That race is already-clean state; otherwise preserve the genuine failure.
+  if(@(EvaluationContainerIds).Count){throw "Docker could not remove the temporary evaluation container (exit code $dockerExitCode)."}
+ }
+}
 $rows=@()
+$benchmarkError=$null
 try{
  Compose @('up','-d','postgres'); Psql 'postgres' "SELECT 'CREATE DATABASE $EvaluationDatabase' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname='$EvaluationDatabase')\gexec"
  & docker build -t crowdtransportfeedback-m9-backend-image (Join-Path $root 'backend');if($LASTEXITCODE){throw 'Backend image build failed.'}
  $postgresId=(& docker compose --project-directory $root ps -q postgres).Trim();$network=(& docker inspect $postgresId --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}').Trim()
- & docker rm -f $container 2>$null|Out-Null
+ RemoveEvaluationContainerIfExists
  $run=@('run','-d','--rm','--name',$container,'--network',$network,'-p',"${BackendPort}:8080",'-e',"DATABASE_URL=jdbc:postgresql://postgres:5432/$EvaluationDatabase",'-e',"DATABASE_USERNAME=$dbUser",'-e',"DATABASE_PASSWORD=$($config.DATABASE_PASSWORD)",'-e',"JWT_SECRET=$($config.JWT_SECRET)",'-e',"APP_ADMIN_EMAIL=$($config.APP_ADMIN_EMAIL)",'-e',"APP_ADMIN_PASSWORD=$($config.APP_ADMIN_PASSWORD)",'-e',"APP_ADMIN_USERNAME=$(if($config.APP_ADMIN_USERNAME){$config.APP_ADMIN_USERNAME}else{'admin'})",'crowdtransportfeedback-m9-backend-image');& docker @run|Out-Null;if($LASTEXITCODE){throw 'Temporary evaluation backend failed to start.'}
  $ready=$false;for($i=0;$i -lt 60;$i++){try{Invoke-WebRequest "$base/actuator/health" -UseBasicParsing|Out-Null;$ready=$true;break}catch{Start-Sleep 2}};if(!$ready){throw 'Temporary backend did not become healthy.'}
  $auth=Invoke-RestMethod "$base/api/auth/login" -Method Post -ContentType 'application/json' -Body (@{email=$config.APP_ADMIN_EMAIL;password=$config.APP_ADMIN_PASSWORD}|ConvertTo-Json);$token=$auth.accessToken;if(!$token){throw 'Administrator authentication did not return an access token.'}
@@ -40,5 +60,10 @@ try{
  $rows|Export-Csv -NoTypeInformation -Encoding utf8 $out
  $cpu=(Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue|Select-Object -First 1 -ExpandProperty Name);$ram=(Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory;$javaVersion=JavaVersionText
  @("evaluation_timestamp=$(Get-Date -Format o)","git_commit_sha=$gitCommit","git_worktree_clean=$($worktreeClean.ToString().ToLowerInvariant())","os=$([Environment]::OSVersion.VersionString)","cpu_model=$cpu","logical_processors=$([Environment]::ProcessorCount)","total_ram_bytes=$ram","java_version=$javaVersion","docker_version=$(& docker version --format '{{.Client.Version}}')","postgresql_image=postgres:17-alpine","spring_boot_version=3.5.6","warmup_count=$Warmups","measured_iterations=$Iterations","dataset_sizes=$($DatasetSizes -join ',')","temporary_backend_port=$BackendPort","percentile_method=nearest-rank")|Set-Content -Encoding utf8 $metadata
-} finally {& docker rm -f $container 2>$null|Out-Null}
+} catch {$benchmarkError=$_;throw} finally {
+ try{RemoveEvaluationContainerIfExists}catch{
+  if($benchmarkError){Write-Warning "Temporary evaluation container cleanup also failed: $($_.Exception.Message)"}
+  else{throw}
+ }
+}
 Write-Host "Wrote $out and $metadata. Keep these results tied to this environment and commit SHA."
