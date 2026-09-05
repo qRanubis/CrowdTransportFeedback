@@ -181,3 +181,7 @@ Migration `V6__moderation_and_admin.sql` adds durable `feedback_report` and `adm
 4. Verify author deletion closes pending reports without progress, and direct admin deletion applies the same confirmation semantics as queue deletion.
 5. Use Reporting → **Export CSV** and select a destination through Android's document picker.
 6. Stop the backend and verify the dashboard shows **Admin dashboard requires a connection** while existing offline feedback remains available.
+
+## Milestone 9A — experimental evaluation baseline
+
+The reproducible Trust experiments, isolated PostgreSQL HTTP performance benchmark, and controlled Android eventual-consistency evaluation are documented in [`evaluation/README.md`](evaluation/README.md). M9A records baselines without production performance optimization; generated, environment-dependent result files remain local for a later same-procedure M9B comparison.
