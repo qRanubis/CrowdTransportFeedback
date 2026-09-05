@@ -162,3 +162,22 @@ prediction, reverse geocoding, or PostGIS. It does not infer neighborhood names.
 grid is approximate, and the heat visualization uses aggregated cell centres rather than
 route geometry. Offline synchronized Feedback mode remains available when analytics is
 unavailable; heatmap responses are not cached in Room.
+
+## Milestone 8 — administration and community moderation
+
+Feedback by another author can be reported online once per account using one of six reasons; `OTHER` requires details and all details are limited to 250 characters. Reports move from `PENDING` to `DISMISSED` when an administrator keeps feedback, `CONFIRMED` when an administrator deletes it, or `CLOSED` when its author deletes it first. Reports are deliberately excluded from heatmap and trust calculations, and their history survives hard deletion.
+
+Confirmed reports advance the **Watchful Commuter** (1), **Community Guardian** (5), and **Trusted Reporter** (15) achievements without awarding XP or changing leaderboard position. Pending, dismissed, and closed reports do not advance them, and unlocked moderation achievements use the existing pinning system.
+
+The online-only Android Admin Dashboard is visible only for authenticated `ADMIN` accounts and provides Overview, grouped Reports moderation, Feedback, read-only Users, and Reporting/CSV sections. The backend independently protects every `/api/admin/**` endpoint with the `ADMIN` role. Administrators remain externally provisioned exclusively through `AdminBootstrap` environment configuration; the app provides no role or account-management operations.
+
+Migration `V6__moderation_and_admin.sql` adds durable `feedback_report` and `admin_audit_log` tables plus moderation indexes. Audit entries are persisted for report dismissal, reported-feedback deletion, and direct administrative deletion. CSV exports use the dashboard reporting filters and the Android system document picker; administrative responses are never stored in Room.
+
+### Local M8 walkthrough
+
+1. Start PostgreSQL/backend with the documented environment-based administrator and start the Android app. Demo data remains opt-in (`DEMO_SEED_ENABLED=true`) and does not seed reports.
+2. As one normal user, open another user's synchronized feedback, submit a report, and verify **Reported · Pending review** replaces the action.
+3. As the administrator, open **Admin**, review the grouped queue, then Keep or confirm Delete. Reopen the reporter profile to inspect achievement progress.
+4. Verify author deletion closes pending reports without progress, and direct admin deletion applies the same confirmation semantics as queue deletion.
+5. Use Reporting → **Export CSV** and select a destination through Android's document picker.
+6. Stop the backend and verify the dashboard shows **Admin dashboard requires a connection** while existing offline feedback remains available.

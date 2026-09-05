@@ -28,6 +28,9 @@ import com.example.crowdtransportfeedback.ui.viewmodel.FeedbackViewModel
 import com.example.crowdtransportfeedback.profile.ProfileApi
 import com.example.crowdtransportfeedback.ui.screens.*
 import com.example.crowdtransportfeedback.analytics.AnalyticsRepository
+import com.example.crowdtransportfeedback.data.remote.FeedbackApi
+import com.example.crowdtransportfeedback.admin.AdminApi
+import com.example.crowdtransportfeedback.admin.canAccessAdmin
 
 object Routes {
     const val LIST = "list"
@@ -38,10 +41,11 @@ object Routes {
     const val ACHIEVEMENTS = "achievements"
     const val LEADERBOARD = "leaderboard"
     const val MAP = "map"
+    const val ADMIN = "admin"
 }
 
 @Composable
-fun AppNav(vm: FeedbackViewModel, authRepository: AuthRepository, sessionManager: SessionManager, profileApi: ProfileApi, analyticsRepository: AnalyticsRepository) {
+fun AppNav(vm: FeedbackViewModel, authRepository: AuthRepository, sessionManager: SessionManager, profileApi: ProfileApi, analyticsRepository: AnalyticsRepository, feedbackApi: FeedbackApi, adminApi: AdminApi) {
     val sessionState by sessionManager.state.collectAsState()
     when (val state = sessionState) {
         SessionState.Loading -> {
@@ -52,7 +56,7 @@ fun AppNav(vm: FeedbackViewModel, authRepository: AuthRepository, sessionManager
             AuthScreen(authRepository, sessionManager)
             return
         }
-        is SessionState.Authenticated -> AuthenticatedNav(vm, state.user, sessionManager, profileApi, analyticsRepository)
+        is SessionState.Authenticated -> AuthenticatedNav(vm, state.user, sessionManager, profileApi, analyticsRepository, feedbackApi, adminApi)
     }
 }
 
@@ -61,7 +65,7 @@ private fun AuthenticatedNav(
     vm: FeedbackViewModel,
     user: AuthUser,
     sessionManager: SessionManager,
-    profileApi: ProfileApi, analyticsRepository: AnalyticsRepository
+    profileApi: ProfileApi, analyticsRepository: AnalyticsRepository, feedbackApi: FeedbackApi, adminApi: AdminApi
 ) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -79,7 +83,8 @@ private fun AuthenticatedNav(
             onProfile = { navController.navigate(Routes.PROFILE) { launchSingleTop = true } },
             showBack = !isFeedbackList,
             onBack = { navController.popBackStack() },
-            avatarKey = avatarKey
+            avatarKey = avatarKey,
+            onAdmin = if (canAccessAdmin(user.role)) ({ navController.navigate(Routes.ADMIN) { launchSingleTop = true } }) else null
         )
         NavHost(
             navController = navController,
@@ -122,6 +127,7 @@ private fun AuthenticatedNav(
                     currentUserId = user.id,
                     currentUsername = user.username,
                     currentUserRole = user.role,
+                    feedbackApi = feedbackApi,
                     onBack = { navController.popBackStack() }
                     ,onAuthor = { navController.navigate("${Routes.PUBLIC_PROFILE}/$it") }
                 )
@@ -129,6 +135,7 @@ private fun AuthenticatedNav(
             composable(Routes.PROFILE) { MyProfileScreen(profileApi,{navController.navigate(Routes.ACHIEVEMENTS) { launchSingleTop = true }},{navController.navigate(Routes.LEADERBOARD) { launchSingleTop = true }},{ avatarKey = it }) }
             composable(Routes.ACHIEVEMENTS) { AchievementsScreen(profileApi) }
             composable(Routes.LEADERBOARD) { LeaderboardScreen(profileApi){navController.navigate("${Routes.PUBLIC_PROFILE}/$it")} }
+            if (canAccessAdmin(user.role)) composable(Routes.ADMIN) { AdminDashboardScreen(adminApi) }
             composable("${Routes.PUBLIC_PROFILE}/{username}",arguments=listOf(navArgument("username"){type=NavType.StringType})){PublicProfileScreen(profileApi,it.arguments?.getString("username").orEmpty())}
         }
     }

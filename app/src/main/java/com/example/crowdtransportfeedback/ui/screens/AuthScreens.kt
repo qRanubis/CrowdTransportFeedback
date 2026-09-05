@@ -151,7 +151,8 @@ fun AccountBar(
     onProfile: () -> Unit = {},
     showBack: Boolean = false,
     onBack: () -> Unit = {},
-    avatarKey: String = "COMMUTER"
+    avatarKey: String = "COMMUTER",
+    onAdmin: (() -> Unit)? = null
 ) {
     val scope = rememberCoroutineScope()
 
@@ -171,8 +172,6 @@ fun AccountBar(
             }
         }
 
-        TextButton(onClick = { scope.launch { session.logout() } }) {
-            Text("Logout")
-        }
+        Row { onAdmin?.let { TextButton(onClick=it){Text("Admin")} }; TextButton(onClick = { scope.launch { session.logout() } }) { Text("Logout") } }
     }
 }
