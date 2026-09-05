@@ -16,6 +16,13 @@ function Compose([string[]]$Arguments){& docker compose --project-directory $roo
 function Psql([string]$Database,[string]$Sql,[string[]]$Variables=@()){ $args=@('compose','--project-directory',$root,'exec','-T','postgres','psql','-v','ON_ERROR_STOP=1','-U',$dbUser,'-d',$Database)+$Variables; $Sql | & docker @args;if($LASTEXITCODE){throw 'PostgreSQL evaluation command failed.'} }
 function Request([string]$Uri,[string]$Token){Invoke-RestMethod -Uri $Uri -Headers @{Authorization="Bearer $Token"} -Method Get}
 function Timed([string]$Name,[string]$Uri,[string]$Token,[int]$Size){for($i=0;$i -lt $Warmups;$i++){[void](Request $Uri $Token)};$times=[System.Collections.Generic.List[double]]::new();$failures=0;for($i=0;$i -lt $Iterations;$i++){$sw=[Diagnostics.Stopwatch]::StartNew();try{[void](Request $Uri $Token);$sw.Stop();$times.Add($sw.Elapsed.TotalMilliseconds)}catch{$sw.Stop();$failures++;throw "Measured request failed for $Name; dataset aborted and no misleading row written: $($_.Exception.Message)"}};$sorted=@($times|Sort-Object);function NR([double]$p){$sorted[[Math]::Max(0,[Math]::Ceiling($p*$sorted.Count)-1)]};[pscustomobject]@{dataset_size=$Size;endpoint=$Name;warmup_count=$Warmups;iteration_count=$Iterations;success_count=$times.Count;failure_count=$failures;min_ms=[Math]::Round($sorted[0],3);average_ms=[Math]::Round(($times|Measure-Object -Average).Average,3);p50_ms=[Math]::Round((NR .50),3);p95_ms=[Math]::Round((NR .95),3);max_ms=[Math]::Round($sorted[-1],3)}}
+function JavaVersionText(){
+ $previousPreference=$ErrorActionPreference
+ try{$ErrorActionPreference='Continue';$nativeOutput=& java -version 2>&1;$javaExitCode=$LASTEXITCODE}
+ finally{$ErrorActionPreference=$previousPreference}
+ if($javaExitCode -ne 0){return "unavailable (java exit code $javaExitCode)"}
+ return (@($nativeOutput|ForEach-Object{$_.ToString()})|Select-Object -First 1) -replace '[\r\n]',' '
+}
 $rows=@()
 try{
  Compose @('up','-d','postgres'); Psql 'postgres' "SELECT 'CREATE DATABASE $EvaluationDatabase' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname='$EvaluationDatabase')\gexec"
@@ -31,7 +38,7 @@ try{
   $targets=[ordered]@{analytics_heatmap=$heatUri;analytics_area=$areaUri;feedback_all="$base/api/feedback";admin_overview="$base/api/admin/overview";admin_reporting_summary=$summaryUri;admin_feedback=$adminFeedbackUri};foreach($entry in $targets.GetEnumerator()){$rows+=Timed $entry.Key $entry.Value $token $size}
  }
  $rows|Export-Csv -NoTypeInformation -Encoding utf8 $out
- $cpu=(Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue|Select-Object -First 1 -ExpandProperty Name);$ram=(Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory
- @("evaluation_timestamp=$(Get-Date -Format o)","git_commit_sha=$gitCommit","git_worktree_clean=$($worktreeClean.ToString().ToLowerInvariant())","os=$([Environment]::OSVersion.VersionString)","cpu_model=$cpu","logical_processors=$([Environment]::ProcessorCount)","total_ram_bytes=$ram","java_version=$((& java -version 2>&1|Select-Object -First 1) -replace '[\r\n]',' ')","docker_version=$(& docker version --format '{{.Client.Version}}')","postgresql_image=postgres:17-alpine","spring_boot_version=3.5.6","warmup_count=$Warmups","measured_iterations=$Iterations","dataset_sizes=$($DatasetSizes -join ',')","temporary_backend_port=$BackendPort","percentile_method=nearest-rank")|Set-Content -Encoding utf8 $metadata
+ $cpu=(Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue|Select-Object -First 1 -ExpandProperty Name);$ram=(Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory;$javaVersion=JavaVersionText
+ @("evaluation_timestamp=$(Get-Date -Format o)","git_commit_sha=$gitCommit","git_worktree_clean=$($worktreeClean.ToString().ToLowerInvariant())","os=$([Environment]::OSVersion.VersionString)","cpu_model=$cpu","logical_processors=$([Environment]::ProcessorCount)","total_ram_bytes=$ram","java_version=$javaVersion","docker_version=$(& docker version --format '{{.Client.Version}}')","postgresql_image=postgres:17-alpine","spring_boot_version=3.5.6","warmup_count=$Warmups","measured_iterations=$Iterations","dataset_sizes=$($DatasetSizes -join ',')","temporary_backend_port=$BackendPort","percentile_method=nearest-rank")|Set-Content -Encoding utf8 $metadata
 } finally {& docker rm -f $container 2>$null|Out-Null}
 Write-Host "Wrote $out and $metadata. Keep these results tied to this environment and commit SHA."

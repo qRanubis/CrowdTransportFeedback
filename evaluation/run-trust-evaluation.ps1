@@ -10,8 +10,17 @@ try {
     $isWindows = [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
     $wrapper = Join-Path (Get-Location) $(if ($isWindows) { 'mvnw.cmd' } else { 'mvnw' })
     if (!(Test-Path $wrapper)) { throw "Maven wrapper was not found: $wrapper" }
-    $log = & $wrapper '-Dtest=M9TrustEvaluationTest' test 2>&1
-    if ($LASTEXITCODE) { $log | Write-Host; throw 'Trust evaluation failed.' }
+    $previousPreference = $ErrorActionPreference
+    try {
+        # Windows PowerShell 5.1 represents native stderr as ErrorRecord objects when
+        # streams are merged. Only the Maven process exit code determines success.
+        $ErrorActionPreference = 'Continue'
+        $nativeOutput = & $wrapper '-Dtest=M9TrustEvaluationTest' test 2>&1
+        $mavenExitCode = $LASTEXITCODE
+    }
+    finally { $ErrorActionPreference = $previousPreference }
+    $log = @($nativeOutput | ForEach-Object { $_.ToString() })
+    if ($mavenExitCode -ne 0) { $log | Write-Host; throw "Trust evaluation failed with Maven exit code $mavenExitCode." }
 }
 finally { Pop-Location }
 $rows = @($log | ForEach-Object { if ($_ -match 'M9_RESULT,([^,]+),([^,]+),([^,]+),(.+)$') { [pscustomobject]@{ experiment_id=$Matches[1]; variant=$Matches[2]; metric=$Matches[3]; value=$Matches[4].Trim() } } })

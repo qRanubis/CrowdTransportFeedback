@@ -17,7 +17,18 @@ $runStarted=Get-Date
 $wrapper=Join-Path $root $(if($isWindows){'gradlew.bat'}else{'gradlew'})
 if(!(Test-Path $wrapper)){throw "Gradle wrapper was not found: $wrapper"}
 Push-Location $root
-try{$log=& $wrapper connectedDebugAndroidTest --info '-Pandroid.testInstrumentationRunnerArguments.class=com.example.crowdtransportfeedback.data.repository.M9ReliabilityEvaluationTest' 2>&1;if($LASTEXITCODE){$log|Write-Host;throw 'M9 reliability instrumentation evaluation failed.'}}finally{Pop-Location}
+try{
+    $previousPreference=$ErrorActionPreference
+    try{
+        # Gradle warnings on native stderr are data, not PowerShell failures. The
+        # process exit code remains authoritative on Windows PowerShell 5.1+.
+        $ErrorActionPreference='Continue'
+        $nativeOutput=& $wrapper connectedDebugAndroidTest --info '-Pandroid.testInstrumentationRunnerArguments.class=com.example.crowdtransportfeedback.data.repository.M9ReliabilityEvaluationTest' 2>&1
+        $gradleExitCode=$LASTEXITCODE
+    }finally{$ErrorActionPreference=$previousPreference}
+    $log=@($nativeOutput|ForEach-Object{$_.ToString()})
+    if($gradleExitCode -ne 0){$log|Write-Host;throw "M9 reliability instrumentation evaluation failed with Gradle exit code $gradleExitCode."}
+}finally{Pop-Location}
 $resultLines=@($log|Where-Object{$_ -match 'M9_RESULT,'})
 if(!$resultLines.Count){
     $resultLines=@(Get-ChildItem (Join-Path $root 'app/build') -Recurse -File -ErrorAction SilentlyContinue |
