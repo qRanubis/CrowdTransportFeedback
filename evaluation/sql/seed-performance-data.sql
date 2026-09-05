@@ -1,7 +1,3 @@
-\if :{?row_count}
-\else
-\error 'row_count variable is required'
-\endif
 SELECT CASE WHEN current_database() = 'crowd_feedback_eval' THEN 1 ELSE 1/0 END AS evaluation_database_guard;
 INSERT INTO app_user(id,email,username,password_hash,role,created_at,avatar_key)
 SELECT ('00000000-0000-4000-8000-' || lpad(i::text,12,'0'))::uuid,
