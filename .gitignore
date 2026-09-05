@@ -15,3 +15,6 @@
 local.properties
 .env
 backend/target/
+/evaluation/results/*.csv
+/evaluation/results/performance-environment.txt
+/evaluation/results/trust-summary.md
