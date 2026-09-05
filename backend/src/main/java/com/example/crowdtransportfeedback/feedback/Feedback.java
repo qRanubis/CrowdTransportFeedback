@@ -58,4 +58,14 @@ public class Feedback {
     public long createdAt;
 
     protected Feedback() {}
+
+    public Feedback(UUID id, AppUser owner, TransportType type, String line, int punctuality,
+                    int cleanliness, int crowding, String comment, double latitude,
+                    double longitude, long createdAt) {
+        this.feedbackId = id; this.owner = owner; this.transportType = type; this.line = line;
+        this.normalizedLine = line.trim().toUpperCase(java.util.Locale.ROOT);
+        this.punctualityScore = punctuality; this.cleanlinessScore = cleanliness;
+        this.crowdingScore = crowding; this.score = (punctuality + cleanliness + crowding) / 3.0;
+        this.comment = comment; this.latitude = latitude; this.longitude = longitude; this.createdAt = createdAt;
+    }
 }

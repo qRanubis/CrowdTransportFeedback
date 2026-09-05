@@ -11,6 +11,7 @@ import com.example.crowdtransportfeedback.ui.navigation.AppNav
 import com.example.crowdtransportfeedback.ui.theme.CrowdTransportFeedbackTheme
 import com.example.crowdtransportfeedback.ui.viewmodel.FeedbackViewModel
 import com.example.crowdtransportfeedback.ui.viewmodel.FeedbackViewModelFactory
+import com.example.crowdtransportfeedback.analytics.AnalyticsRepository
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -39,7 +40,8 @@ class MainActivity : ComponentActivity() {
                     vm = vm,
                     authRepository = app.services.authRepository,
                     sessionManager = sessionManager,
-                    profileApi = app.services.network.profileApi
+                    profileApi = app.services.network.profileApi,
+                    analyticsRepository = AnalyticsRepository(app.services.network.analyticsApi)
                 )
             }
         }

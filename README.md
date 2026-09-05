@@ -104,3 +104,61 @@ The map falls back to a city-level view of Bucharest. Location permission is opt
 For local setup, add a `MAPS_API_KEY` property with your key to the gitignored root `local.properties`, then rebuild the app. If it is absent or blank, the app compiles and the Map screen displays a setup message instead of initializing Maps. Restrict the Android key in Google Cloud to this application's package and signing certificate; never commit or log it.
 
 M6 deliberately renders individual synchronized feedback only. Trust-score/geospatial aggregation and heatmap visualization are deferred to Milestone 7.
+
+## Milestone 7: geospatial trust analytics
+
+The Map now has **Feedback** and **Heatmap** modes. Feedback mode keeps authoritative,
+synchronized reports and groups overlapping reports into the same deterministic cell;
+its area sheet shows the newest five and pages the complete local list 20 at a time.
+Heatmap mode requests one authoritative aggregate per populated cell from the backend,
+supports Trust, Crowding, Punctuality, and Cleanliness, and provides clickable area details.
+Filters cover 24 hours, 7 days, 30 days (default), or all time, plus transport type and a
+catalog-backed line. Changing transport clears the previous line.
+
+### Aggregation model
+
+Coordinates are projected to spherical Web Mercator metres (`R = 6,378,137 m`) and
+assigned with `floor(projectedCoordinate / 250)`. The inverse-projected cell midpoint is
+used for display. This is a stable, explainable approximation, but Mercator scale distortion
+means cells are only approximately 250 m on the ground (particularly away from Bucharest).
+Invalid coordinates are discarded.
+
+For each metric, included reports are first grouped by authenticated contributor. Each
+contributor receives a recency-weighted average using `0.5^(ageDays / 30)` and no more
+than 1.0 total effective weight. The public score is then Bayesian-smoothed:
+
+```
+(2 × 3.0 + Σ contributorWeight × contributorAverage) / (2 + Σ contributorWeight)
+```
+
+Scores are clamped to 1..5. Thus one fresh 5/5 report yields about 3.67, not 5.0.
+Confidence is separate evidence metadata: 1–2 unique contributors is LOW, 3–5 MEDIUM,
+and 6+ HIGH. Empty cells are omitted. Crowding is explicitly **in-vehicle comfort**
+(1 crowded/uncomfortable, 5 spacious/comfortable); punctuality does not imply a cause.
+
+### Development demo data
+
+The deterministic seed is off by default and has two guards: the `demo` Spring profile
+and `app.demo-seed-enabled=true`. It creates eight local-only users and 50 idempotent,
+varied reports around five documented Bucharest demo centres. Start it from `backend/`:
+
+```bash
+SPRING_PROFILES_ACTIVE=demo DEMO_SEED_ENABLED=true JWT_SECRET='local-development-secret-at-least-32-bytes' ./mvnw spring-boot:run
+```
+
+The demo password is `demo-only-password` and is **LOCAL DEVELOPMENT ONLY**. Existing
+seed timestamps are not rewritten. To recreate timestamps, stop the stack and reset the
+local database volume (`docker compose down -v`), then start the demo configuration again.
+Never enable the demo profile/property in production.
+
+The Google Maps key remains local in `local.properties` as described above and must not be
+committed.
+
+### M7 limitations
+
+Heatmaps represent user-reported experiences, not objective real-time conditions. M7 has
+no road-traffic API, GTFS route geometry, segment-level route analytics, real-time
+prediction, reverse geocoding, or PostGIS. It does not infer neighborhood names. The 250 m
+grid is approximate, and the heat visualization uses aggregated cell centres rather than
+route geometry. Offline synchronized Feedback mode remains available when analytics is
+unavailable; heatmap responses are not cached in Room.
