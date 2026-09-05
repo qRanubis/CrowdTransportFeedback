@@ -30,6 +30,8 @@ class FeedbackViewModel(private val repo: FeedbackRepository) : ViewModel() {
 
     fun getFeedbackById(id: Long) = repo.getById(id)
 
+    suspend fun resolveFeedbackLocalId(feedbackId: String): Long? = repo.resolveLocalId(feedbackId)
+
     fun setCrowding(value: Int) = updateRating(value) { copy(crowdingScore = value) }
     fun setCleanliness(value: Int) = updateRating(value) { copy(cleanlinessScore = value) }
     fun setPunctuality(value: Int) = updateRating(value) { copy(punctualityScore = value) }

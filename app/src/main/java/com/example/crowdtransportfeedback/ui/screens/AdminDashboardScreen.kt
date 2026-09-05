@@ -14,12 +14,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.crowdtransportfeedback.admin.*
-import com.example.crowdtransportfeedback.domain.BucharestTransitCatalog
 import com.example.crowdtransportfeedback.domain.TransportType
 import kotlinx.coroutines.launch
 
 @Composable
-fun AdminDashboardScreen(api: AdminApi, onFeedback: (String) -> Unit, onUser: (String) -> Unit) {
+fun AdminDashboardScreen(api: AdminApi, onFeedback: suspend (String) -> Boolean, onUser: (String) -> Unit) {
     val tabs = listOf("Overview", "Reports", "Feedback", "Users", "Reporting")
     var selected by remember { mutableIntStateOf(0) }
     Column(Modifier.fillMaxSize()) {
@@ -130,11 +129,14 @@ private fun ModerationCard(api: AdminApi, row: QueueItem, reload: () -> Unit) {
 }
 
 @Composable
-private fun FeedbackTab(api: AdminApi, onFeedback: (String) -> Unit) {
+private fun FeedbackTab(api: AdminApi, onFeedback: suspend (String) -> Boolean) {
+    val scope = rememberCoroutineScope()
     var filters by remember { mutableStateOf(AdminFilterState()) }
+    var navigationError by remember { mutableStateOf(false) }
     val key = listOf(filters.window, filters.transportType, filters.line, filters.username, filters.page)
     Column {
         AdminFilters(filters, showUsername = true) { filters = it }
+        if (navigationError) Text("Feedback detail could not be loaded. Try again.", color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 8.dp))
         OnlinePanel(key = key, load = { api.feedback(filters.transportType, filters.line, filters.window, filters.username.ifBlank { null }, filters.page) }) { result, _ ->
             Column(Modifier.weight(1f)) {
                 if (result.content.isEmpty()) Text("No feedback", Modifier.padding(16.dp))
@@ -143,7 +145,7 @@ private fun FeedbackTab(api: AdminApi, onFeedback: (String) -> Unit) {
                         ListItem(
                             headlineContent = { Text("${row.transportType} / ${row.line} · ${row.score}") },
                             supportingContent = { Text("@${row.username}${row.comment?.let { " — $it" }.orEmpty()}") },
-                            modifier = Modifier.clickable { onFeedback(row.feedbackId) }
+                            modifier = Modifier.clickable { scope.launch { navigationError = !onFeedback(row.feedbackId) } }
                         )
                     }
                 }
@@ -211,7 +213,8 @@ private fun AdminFilters(state: AdminFilterState, showUsername: Boolean, onChang
             ChoiceMenu("Transport", state.transportType, listOf(null) + TransportType.entries.map { it.name }) { onChange(state.withTransport(it)) }
             Spacer(Modifier.width(8.dp))
             val type = state.transportType?.let { runCatching { TransportType.valueOf(it) }.getOrNull() }
-            ChoiceMenu("Line", state.line, type?.let(BucharestTransitCatalog::linesFor)?.map { it } ?: emptyList(), enabled = type != null) { onChange(state.withLine(it)) }
+            val lineOptions = adminLineOptions(type)
+            ChoiceMenu("Line", state.line, lineOptions, enabled = type != null) { onChange(state.withLine(it)) }
         }
         if (showUsername) OutlinedTextField(state.username, { onChange(state.withUsername(it)) }, label = { Text("Username") }, singleLine = true, modifier = Modifier.fillMaxWidth())
     }
@@ -220,10 +223,11 @@ private fun AdminFilters(state: AdminFilterState, showUsername: Boolean, onChang
 @Composable
 private fun ChoiceMenu(label: String, value: String?, options: List<String?>, enabled: Boolean = true, onSelect: (String?) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
+    val allLabel = if (label == "Line") "All lines" else "All $label"
     Box {
-        OutlinedButton({ expanded = true }, enabled = enabled) { Text(value ?: "All $label") }
+        OutlinedButton({ expanded = true }, enabled = enabled) { Text(value ?: allLabel) }
         DropdownMenu(expanded, { expanded = false }) {
-            options.forEach { option -> DropdownMenuItem({ Text(option ?: "All $label") }, { onSelect(option); expanded = false }) }
+            options.forEach { option -> DropdownMenuItem({ Text(option ?: allLabel) }, { onSelect(option); expanded = false }) }
         }
     }
 }

@@ -139,9 +139,9 @@ private fun AuthenticatedNav(
                 AdminDashboardScreen(
                     api = adminApi,
                     onFeedback = { feedbackId ->
-                        vm.feedbackList.value.firstOrNull { it.feedbackId == feedbackId }?.let {
-                            navController.navigate("${Routes.DETAIL}/${it.localId}")
-                        }
+                        val localId = runCatching { vm.resolveFeedbackLocalId(feedbackId) }.getOrNull()
+                        if (localId != null) navController.navigate("${Routes.DETAIL}/$localId")
+                        localId != null
                     },
                     onUser = { username -> navController.navigate("${Routes.PUBLIC_PROFILE}/$username") }
                 )

@@ -49,6 +49,13 @@ class FeedbackRepository(
 
     fun getById(localId: Long) = dao.getByLocalId(localId)
 
+    /** Resolve a server UUID without duplicating storage; synchronize once if Room is stale. */
+    suspend fun resolveLocalId(feedbackId: String): Long? {
+        dao.getByFeedbackIdOnce(feedbackId)?.let { return it.localId }
+        synchronize()
+        return dao.getByFeedbackIdOnce(feedbackId)?.localId
+    }
+
     suspend fun synchronize(): SynchronizationResult = synchronizationMutex.withLock {
         var transientFailure = false
 

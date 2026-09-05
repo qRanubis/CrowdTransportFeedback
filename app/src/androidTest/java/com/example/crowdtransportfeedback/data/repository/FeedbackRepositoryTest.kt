@@ -71,6 +71,25 @@ class FeedbackRepositoryTest {
     }
 
     @Test
+    fun resolveLocalIdUsesExistingRoomRowWithoutSynchronization() = runBlocking {
+        val localId = database.feedbackDao().insert(feedback("already-local", SyncState.SYNCED))
+
+        assertEquals(localId, repository.resolveLocalId("already-local"))
+        assertEquals(0, api.getAllCalls)
+    }
+
+    @Test
+    fun resolveLocalIdSynchronizesMissingServerFeedbackAndReturnsInsertedRow() = runBlocking {
+        api.remote += feedbackDto("server-only", "remote", USER_B)
+
+        val localId = repository.resolveLocalId("server-only")
+
+        assertTrue(localId != null)
+        assertEquals("server-only", database.feedbackDao().getByLocalIdOnce(localId!!)?.feedbackId)
+        assertEquals(1, api.getAllCalls)
+    }
+
+    @Test
     fun pendingCreateRetriesAfterNetworkReturns() = runBlocking {
         api.networkAvailable = false
         val localId = repository.addFeedbackAndUpload(feedback("pending-id"))
@@ -338,8 +357,10 @@ private class RecordingFeedbackApi : FeedbackApi {
     val added = mutableListOf<FeedbackDto>()
     val deleted = mutableListOf<String>()
     var deleteCalls = 0
+    var getAllCalls = 0
 
     override suspend fun getAll(): List<FeedbackDto> {
+        getAllCalls++
         requireNetwork()
         return remote
     }
@@ -377,6 +398,11 @@ private class RecordingFeedbackApi : FeedbackApi {
         deleted += id
         return Response.success(Unit)
     }
+
+    override suspend fun myReport(id: String) = FeedbackApi.MyReport(false, null)
+
+    override suspend fun report(id: String, request: FeedbackApi.ReportRequest): Response<Unit> =
+        Response.success(Unit)
 
     private fun requireNetwork() {
         if (!networkAvailable) throw IOException("offline")
