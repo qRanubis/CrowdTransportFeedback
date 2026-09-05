@@ -36,6 +36,7 @@ object Routes {
     const val PUBLIC_PROFILE = "publicProfile"
     const val ACHIEVEMENTS = "achievements"
     const val LEADERBOARD = "leaderboard"
+    const val MAP = "map"
 }
 
 @Composable
@@ -93,8 +94,14 @@ private fun AuthenticatedNav(
                         vm.resetFeedbackForm()
                         navController.navigate(Routes.ADD)
                     },
+                    onMapClick = { navController.navigate(Routes.MAP) { launchSingleTop = true } },
                     onItemClick = { id -> navController.navigate("${Routes.DETAIL}/$id") }
                 )
+            }
+            composable(Routes.MAP) {
+                MapScreen(vm = vm, onFeedbackClick = { id ->
+                    navController.navigate("${Routes.DETAIL}/$id")
+                })
             }
             composable(Routes.ADD) {
                 AddFeedbackScreen(

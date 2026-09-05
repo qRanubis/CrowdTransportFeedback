@@ -94,3 +94,13 @@ Flyway `V5__profiles_and_gamification.sql` non-destructively adds avatars, canon
 Level progress uses an explicit server contract: `levelStartXp`, `xpIntoLevel`, `xpNeededForNextLevel`, and the absolute `nextLevelThreshold`; all next-level fields are absent at maximum level. Same-line cooldown checks use the open UTC timestamp interval 30 minutes before through 30 minutes after an incoming timestamp, making offline synchronization order irrelevant while allowing submissions exactly 30 minutes apart. Monthly leaderboard queries use the explicit UTC half-open interval `[start of month, start of next month)`.
 
 Verification commands: `cd backend && ./mvnw test && ./mvnw package`; from the repository root run `./gradlew testDebugUnitTest lintDebug assembleDebug connectedDebugAndroidTest`, then `docker compose up --build -d`, `docker compose ps`, and check `http://localhost:8080/actuator/health`.
+
+## Milestone 6: Google Maps and feedback visualization
+
+The Android feedback list now opens an interactive Google Map backed by the same observable Room data. The public map shows one marker per synchronized feedback row with valid coordinates, offers All/Bus/Metro/Tram/Trolleybus/Night bus filters, and visually distinguishes transport types. A marker info window shows its line, overall rating, and safe public username; tapping that info window opens the existing Feedback Detail screen, with Back returning to the map.
+
+The map falls back to a city-level view of Bucharest. Location permission is optional: the screen remains available without it, while **Enable location** requests foreground permission and **My location** performs a one-shot recenter when a position is available. There is no continuous or background tracking. Map tiles remain dependent on Google Maps network availability; feedback stays safely stored in Room when tiles are unavailable, and no custom offline tile cache is provided.
+
+For local setup, add a `MAPS_API_KEY` property with your key to the gitignored root `local.properties`, then rebuild the app. If it is absent or blank, the app compiles and the Map screen displays a setup message instead of initializing Maps. Restrict the Android key in Google Cloud to this application's package and signing certificate; never commit or log it.
+
+M6 deliberately renders individual synchronized feedback only. Trust-score/geospatial aggregation and heatmap visualization are deferred to Milestone 7.

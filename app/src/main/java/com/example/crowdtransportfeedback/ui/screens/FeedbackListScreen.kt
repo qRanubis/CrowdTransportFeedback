@@ -20,6 +20,7 @@ fun FeedbackListScreen(
     currentUserId: String,
     currentUsername: String,
     onAddClick: () -> Unit,
+    onMapClick: () -> Unit,
     onItemClick: (Long) -> Unit
 ) {
     val list by vm.feedbackList.collectAsState()
@@ -32,6 +33,8 @@ fun FeedbackListScreen(
             Button(onClick = onAddClick) { Text("Add feedback") }
             Spacer(modifier = Modifier.width(12.dp))
             OutlinedButton(onClick = vm::sync) { Text("Sync now") }
+            Spacer(modifier = Modifier.width(12.dp))
+            OutlinedButton(onClick = onMapClick) { Text("Map") }
         }
 
         Spacer(modifier = Modifier.height(12.dp))
