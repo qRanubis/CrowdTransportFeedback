@@ -47,6 +47,8 @@ The runner permits only `crowd_feedback_eval`, explicitly refuses `crowd_feedbac
 
 Existing `.env` values supply database/JWT configuration and `APP_ADMIN_EMAIL`/`APP_ADMIN_PASSWORD`; missing values fail clearly. AdminBootstrap provisions the admin. Passwords and returned tokens are held only in memory and are neither printed nor included in results. The runner writes non-sensitive environment metadata and measurements only after successful collection. Final dissertation BEFORE/AFTER measurements must be made on the same developer machine and software setup; cloud/container measurements are not substitutes.
 
+For traceability, the benchmark refuses to start with an uncommitted worktree and records both the exact Git commit SHA and `git_worktree_clean=true` in `performance-environment.txt`.
+
 ## Reliability evaluation
 
 ```powershell

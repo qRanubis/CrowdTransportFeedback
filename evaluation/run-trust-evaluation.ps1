@@ -6,7 +6,13 @@ $out = Join-Path $results 'trust-results.csv'
 $summary = Join-Path $results 'trust-summary.md'
 Write-Warning "This run overwrites $out and $summary"
 Push-Location (Join-Path $root 'backend')
-try { $log = & ./mvnw '-Dtest=M9TrustEvaluationTest' test 2>&1; if ($LASTEXITCODE) { $log | Write-Host; throw 'Trust evaluation failed.' } }
+try {
+    $isWindows = [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
+    $wrapper = Join-Path (Get-Location) $(if ($isWindows) { 'mvnw.cmd' } else { 'mvnw' })
+    if (!(Test-Path $wrapper)) { throw "Maven wrapper was not found: $wrapper" }
+    $log = & $wrapper '-Dtest=M9TrustEvaluationTest' test 2>&1
+    if ($LASTEXITCODE) { $log | Write-Host; throw 'Trust evaluation failed.' }
+}
 finally { Pop-Location }
 $rows = @($log | ForEach-Object { if ($_ -match 'M9_RESULT,([^,]+),([^,]+),([^,]+),(.+)$') { [pscustomobject]@{ experiment_id=$Matches[1]; variant=$Matches[2]; metric=$Matches[3]; value=$Matches[4].Trim() } } })
 if (!$rows.Count) { throw 'No M9_RESULT records were emitted; no result files written.' }

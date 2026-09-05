@@ -3,7 +3,11 @@ $ErrorActionPreference='Stop'; Set-StrictMode -Version Latest
 if($EvaluationDatabase -eq 'crowd_feedback'){throw 'SAFETY GUARD: evaluation database must never be crowd_feedback.'}
 if($EvaluationDatabase -ne 'crowd_feedback_eval'){throw 'SAFETY GUARD: this harness permits only crowd_feedback_eval.'}
 if($Warmups -lt 0 -or $Iterations -lt 1 -or $DatasetSizes.Where({$_ -lt 1}).Count){throw 'Dataset sizes/iterations must be positive.'}
-$root=Split-Path -Parent $PSScriptRoot; $envFile=Join-Path $root '.env'; if(!(Test-Path $envFile)){throw 'Create local .env with database, JWT, APP_ADMIN_EMAIL and APP_ADMIN_PASSWORD configuration.'}
+$root=Split-Path -Parent $PSScriptRoot
+$gitCommit=(& git -C $root rev-parse HEAD 2>$null).Trim();if($LASTEXITCODE -or !$gitCommit){throw 'Unable to determine the repository Git commit; benchmark aborted.'}
+$gitChanges=@(& git -C $root status --porcelain 2>$null);if($LASTEXITCODE){throw 'Unable to inspect Git worktree state; benchmark aborted.'}
+$worktreeClean=$gitChanges.Count -eq 0;if(!$worktreeClean){throw 'Academic baseline benchmarks require a clean Git worktree. Commit or stash changes before running.'}
+$envFile=Join-Path $root '.env'; if(!(Test-Path $envFile)){throw 'Create local .env with database, JWT, APP_ADMIN_EMAIL and APP_ADMIN_PASSWORD configuration.'}
 $config=@{}; Get-Content $envFile | Where-Object {$_ -match '^\s*[^#][^=]*='} | ForEach-Object {$k,$v=$_ -split '=',2;$config[$k.Trim()]=$v.Trim().Trim('"').Trim("'")}
 foreach($key in @('DATABASE_PASSWORD','JWT_SECRET','APP_ADMIN_EMAIL','APP_ADMIN_PASSWORD')){if(!$config[$key]){throw "Missing $key in local .env; no fake evaluation credentials will be used."}}
 $dbUser=if($config['DATABASE_USERNAME']){$config['DATABASE_USERNAME']}else{'crowd'}; $container='crowdtransportfeedback-m9-backend';$base="http://localhost:$BackendPort";$resultsDir=Join-Path $PSScriptRoot 'results';New-Item -ItemType Directory -Force $resultsDir|Out-Null
@@ -28,6 +32,6 @@ try{
  }
  $rows|Export-Csv -NoTypeInformation -Encoding utf8 $out
  $cpu=(Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue|Select-Object -First 1 -ExpandProperty Name);$ram=(Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory
- @("evaluation_timestamp=$(Get-Date -Format o)","os=$([Environment]::OSVersion.VersionString)","cpu_model=$cpu","logical_processors=$([Environment]::ProcessorCount)","total_ram_bytes=$ram","java_version=$((& java -version 2>&1|Select-Object -First 1) -replace '[\r\n]',' ')","docker_version=$(& docker version --format '{{.Client.Version}}')","postgresql_image=postgres:17-alpine","spring_boot_version=3.5.6","warmup_count=$Warmups","measured_iterations=$Iterations","dataset_sizes=$($DatasetSizes -join ',')","temporary_backend_port=$BackendPort","percentile_method=nearest-rank")|Set-Content -Encoding utf8 $metadata
+ @("evaluation_timestamp=$(Get-Date -Format o)","git_commit_sha=$gitCommit","git_worktree_clean=$($worktreeClean.ToString().ToLowerInvariant())","os=$([Environment]::OSVersion.VersionString)","cpu_model=$cpu","logical_processors=$([Environment]::ProcessorCount)","total_ram_bytes=$ram","java_version=$((& java -version 2>&1|Select-Object -First 1) -replace '[\r\n]',' ')","docker_version=$(& docker version --format '{{.Client.Version}}')","postgresql_image=postgres:17-alpine","spring_boot_version=3.5.6","warmup_count=$Warmups","measured_iterations=$Iterations","dataset_sizes=$($DatasetSizes -join ',')","temporary_backend_port=$BackendPort","percentile_method=nearest-rank")|Set-Content -Encoding utf8 $metadata
 } finally {& docker rm -f $container 2>$null|Out-Null}
 Write-Host "Wrote $out and $metadata. Keep these results tied to this environment and commit SHA."
