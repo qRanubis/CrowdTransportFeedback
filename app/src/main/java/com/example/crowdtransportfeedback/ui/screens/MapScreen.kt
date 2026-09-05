@@ -79,13 +79,19 @@ fun MapScreen(vm: FeedbackViewModel, onFeedbackClick: (Long) -> Unit) {
             uiSettings = MapUiSettings(myLocationButtonEnabled = false)
         ) {
             markers.forEach { marker ->
-                Marker(
-                    state = rememberUpdatedMarkerState(LatLng(marker.latitude, marker.longitude)),
-                    title = "${marker.transportType.displayName} ${marker.line}",
-                    snippet = String.format(Locale.US, "Overall rating: %.1f/5 · @%s", marker.overallRating, marker.publicUsername),
-                    icon = BitmapDescriptorFactory.defaultMarker(markerHue(marker.transportType)),
-                    onInfoWindowClick = { onFeedbackClick(marker.localId) }
-                )
+                key(marker.localId) {
+                    val markerState = rememberMarkerState(
+                        key = marker.localId.toString(),
+                        position = LatLng(marker.latitude, marker.longitude)
+                    )
+                    Marker(
+                        state = markerState,
+                        title = "${marker.transportType.displayName} ${marker.line}",
+                        snippet = String.format(Locale.US, "Overall rating: %.1f/5 · @%s", marker.overallRating, marker.publicUsername),
+                        icon = BitmapDescriptorFactory.defaultMarker(markerHue(marker.transportType)),
+                        onInfoWindowClick = { onFeedbackClick(marker.localId) }
+                    )
+                }
             }
         }
         Row(
