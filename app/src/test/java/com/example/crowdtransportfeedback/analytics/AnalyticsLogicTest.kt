@@ -94,4 +94,17 @@ class AnalyticsLogicTest {
         assertEquals(40, page.size)
         assertEquals(50, page.first())
     }
+
+    @Test fun feedbackModeHidesHeatmapError() {
+        assertNull(heatmapErrorForMode(MapMode.FEEDBACK, "Heatmap unavailable"))
+        assertEquals("Heatmap unavailable", heatmapErrorForMode(MapMode.HEATMAP, "Heatmap unavailable"))
+    }
+
+    @Test fun emptyMessageOnlyAppearsForCompletedEmptyHeatmap() {
+        assertTrue(shouldShowHeatmapEmpty(MapMode.HEATMAP, false, null, 0))
+        assertFalse(shouldShowHeatmapEmpty(MapMode.FEEDBACK, false, null, 0))
+        assertFalse(shouldShowHeatmapEmpty(MapMode.HEATMAP, true, null, 0))
+        assertFalse(shouldShowHeatmapEmpty(MapMode.HEATMAP, false, "unavailable", 0))
+        assertFalse(shouldShowHeatmapEmpty(MapMode.HEATMAP, false, null, 1))
+    }
 }

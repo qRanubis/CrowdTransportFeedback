@@ -9,3 +9,5 @@ enum class MapMode { FEEDBACK, HEATMAP }
 data class AnalyticsFilter(val metric:AnalyticsMetric=AnalyticsMetric.TRUST,val window:AnalyticsWindow=AnalyticsWindow.D30,val transportType:String?=null,val line:String?=null){fun withTransport(value:String?)=copy(transportType=value,line=null)}
 fun normalizedHeatWeight(score:Double)=((score.coerceIn(1.0,5.0)-1.0)/4.0)
 fun AnalyticsMetric.legend()=when(this){AnalyticsMetric.TRUST->"Trust: Low ←→ High";AnalyticsMetric.CROWDING->"Crowding: Crowded ←→ Comfortable";AnalyticsMetric.PUNCTUALITY->"Punctuality: Poor ←→ Punctual";AnalyticsMetric.CLEANLINESS->"Cleanliness: Poor ←→ Clean"}
+fun heatmapErrorForMode(mode:MapMode,error:String?)=error.takeIf { mode==MapMode.HEATMAP }
+fun shouldShowHeatmapEmpty(mode:MapMode,loading:Boolean,error:String?,cellCount:Int)=mode==MapMode.HEATMAP&&!loading&&error==null&&cellCount==0

@@ -56,11 +56,12 @@ fun MapScreen(vm:FeedbackViewModel,analyticsRepository:AnalyticsRepository,onFee
    else cells.forEach{c->Circle(center=LatLng(c.centerLatitude,c.centerLongitude),radius=125.0,fillColor=semanticColor(c.score).copy(alpha=.55f),strokeColor=semanticColor(c.score),strokeWidth=2f,onClick={scope.launch{val requestedAt=System.currentTimeMillis();try{val details=analyticsRepository.area(c.cellId,filter);areaLocalGroup=analyticsAreaGroup(feedback,filter,c.cellId,requestedAt);area=details}catch(cancelled:CancellationException){throw cancelled}catch(_:Exception){area=null;areaLocalGroup=null;error="Area details unavailable."}}},clickable=true)}
   }
   Column(Modifier.fillMaxWidth().padding(8.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){
-   Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){MapMode.entries.forEach{FilterChip(mode==it,{mode=it},{Text(it.name.lowercase().replaceFirstChar(Char::uppercase))})}}
+   Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){MapMode.entries.forEach{option->FilterChip(mode==option,{mode=option;if(option==MapMode.FEEDBACK)error=null},{Text(option.name.lowercase().replaceFirstChar(Char::uppercase))})}}
    if(mode==MapMode.HEATMAP){ChipRow(AnalyticsMetric.entries,filter.metric,{filter=filter.copy(metric=it)}){it.name.lowercase().replaceFirstChar(Char::uppercase)};ChipRow(AnalyticsWindow.entries,filter.window,{filter=filter.copy(window=it)}){it.label};Text(filter.metric.legend(),style=MaterialTheme.typography.labelMedium)}
    ChipRow(MapFilter.entries,mapFilter,{filter=filter.withTransport(it.transportType?.name)}){it.label}
    filter.transportType?.let{name->LineSelector(TransportType.valueOf(name),filter.line){filter=filter.copy(line=it)}}
-   if(loading)LinearProgressIndicator(Modifier.fillMaxWidth());error?.let{Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.labelMedium)};if(mode==MapMode.HEATMAP&&!loading&&error==null&&cells.isEmpty())Text("No analytics match these filters")
+   if(loading)LinearProgressIndicator(Modifier.fillMaxWidth());heatmapErrorForMode(mode,error)?.let{Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.labelMedium)}
+   if(shouldShowHeatmapEmpty(mode,loading,error,cells.size))Surface(color=MaterialTheme.colorScheme.surface.copy(alpha=.94f),shape=MaterialTheme.shapes.medium,shadowElevation=4.dp){Text("No analytics match these filters",modifier=Modifier.padding(horizontal=12.dp,vertical=10.dp),style=MaterialTheme.typography.bodyMedium)}
   }
   Button({if(permission)locate()else launcher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION))},Modifier.align(Alignment.BottomEnd).padding(16.dp)){Text(if(permission)"My location" else "Enable location")}
  }
