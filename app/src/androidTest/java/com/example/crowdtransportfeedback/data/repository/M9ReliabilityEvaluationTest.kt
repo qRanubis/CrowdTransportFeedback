@@ -3,6 +3,7 @@ package com.example.crowdtransportfeedback.data.repository
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import android.util.Log
 import com.example.crowdtransportfeedback.data.local.*
 import com.example.crowdtransportfeedback.data.remote.*
 import java.io.IOException
@@ -25,7 +26,7 @@ class M9ReliabilityEvaluationTest {
    evaluate("R3_repeated_synchronization_idempotency") { n -> val api=FaultApi();val repo=repo(db,api);api.online=false;repo.addFeedbackAndUpload(item("r3-$n"));api.online=true;repeat(5){repo.synchronize()};assertEquals(1,api.remote.count{it.id=="r3-$n"});assertEquals(1,repo.getAllFeedback().first().count{it.feedbackId=="r3-$n"});api.duplicates }
   } finally {db.close()}
  }
- private suspend fun evaluate(name:String,scenario:suspend(Int)->Int){var successes=0;var duplicates=0;repeat(30){n->try{duplicates+=scenario(n);assertEquals(0,duplicates);successes++}finally{/* each UUID is distinct and reconciliation removes prior rows */}};val result=if(successes==30&&duplicates==0)"PASS" else "FAIL";println("M9_RESULT,$name,30,$successes,$duplicates,$result");assertEquals(30,successes);assertEquals(0,duplicates)}
+ private suspend fun evaluate(name:String,scenario:suspend(Int)->Int){var successes=0;var duplicates=0;repeat(30){n->try{duplicates+=scenario(n);assertEquals(0,duplicates);successes++}finally{/* each UUID is distinct and reconciliation removes prior rows */}};val result=if(successes==30&&duplicates==0)"PASS" else "FAIL";val message="M9_RESULT,$name,30,$successes,$duplicates,$result";println(message);Log.i("M9_EVAL",message);assertEquals(30,successes);assertEquals(0,duplicates)}
  private fun repo(db:AppDatabase,api:FaultApi)=FeedbackRepository(db.feedbackDao(),api,currentUserId={USER})
  private fun item(id:String)=FeedbackEntity(feedbackId=id,score=4,comment="M9",latitude=44.4268,longitude=26.1025,line=id,createdAt=1_700_000_000_000,createdByUserId=USER)
  private fun dto(id:String)=FeedbackDto(id,4.0,"M9",id,1_700_000_000_000,44.4268,26.1025,createdByUserId=USER)
