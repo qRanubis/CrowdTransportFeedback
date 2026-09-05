@@ -51,6 +51,13 @@ function RemoveEvaluationContainerIfExists(){
   if(@(EvaluationContainerIds).Count){throw "Docker could not remove the temporary evaluation container (exit code $dockerExitCode)."}
  }
 }
+function EvaluationContainerLogTail(){
+ $previousPreference=$ErrorActionPreference
+ try{$ErrorActionPreference='Continue';$nativeOutput=& docker logs --tail 80 $container 2>&1;$dockerExitCode=$LASTEXITCODE}
+ finally{$ErrorActionPreference=$previousPreference}
+ if($dockerExitCode -ne 0){return @("Docker logs unavailable (exit code $dockerExitCode).")}
+ return @($nativeOutput|ForEach-Object{$_.ToString()})
+}
 $rows=@()
 $benchmarkError=$null
 try{
@@ -59,7 +66,7 @@ try{
  $postgresId=(& docker compose --project-directory $root ps -q postgres).Trim();$network=(& docker inspect $postgresId --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}').Trim()
  RemoveEvaluationContainerIfExists
  $run=@('run','-d','--rm','--name',$container,'--network',$network,'-p',"${BackendPort}:8080",'-e',"DATABASE_URL=jdbc:postgresql://postgres:5432/$EvaluationDatabase",'-e',"DATABASE_USERNAME=$dbUser",'-e',"DATABASE_PASSWORD=$($config['DATABASE_PASSWORD'])",'-e',"JWT_SECRET=$($config['JWT_SECRET'])",'-e',"APP_ADMIN_EMAIL=$($config['APP_ADMIN_EMAIL'])",'-e',"APP_ADMIN_PASSWORD=$($config['APP_ADMIN_PASSWORD'])",'-e',"APP_ADMIN_USERNAME=$adminUsername",'-e','MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED=true','crowdtransportfeedback-m9-backend-image');& docker @run|Out-Null;if($LASTEXITCODE){throw 'Temporary evaluation backend failed to start.'}
- $ready=$false;for($i=0;$i -lt 60;$i++){try{$readiness=Invoke-RestMethod "$base/actuator/health/readiness" -Method Get;if($readiness.status -eq 'UP'){$ready=$true;break}}catch{};Start-Sleep 2};if(!$ready){throw 'Temporary backend did not report readiness UP within 120 seconds; startup runners may not have completed.'}
+ $ready=$false;$lastReadinessDiagnostic='backend not yet reachable';for($i=0;$i -lt 60;$i++){try{$readiness=Invoke-RestMethod "$base/actuator/health/readiness" -Method Get;if($readiness.status -eq 'UP'){$ready=$true;break};$lastReadinessDiagnostic="readiness status was '$($readiness.status)'"}catch{$status=$null;if($_.Exception.Response -and $_.Exception.Response.StatusCode){$status=[int]$_.Exception.Response.StatusCode};if($status -eq 401 -or $status -eq 403){throw "Readiness endpoint is not publicly accessible (HTTP $status): $base/actuator/health/readiness"};$lastReadinessDiagnostic=if($status){"HTTP $status"}else{$_.Exception.Message}};Start-Sleep 2};if(!$ready){Write-Warning "Temporary backend log tail follows (readiness diagnostic: $lastReadinessDiagnostic):";EvaluationContainerLogTail|Write-Warning;throw 'Temporary backend did not report readiness UP within 120 seconds; startup runners may not have completed.'}
  $auth=Invoke-RestMethod "$base/api/auth/login" -Method Post -ContentType 'application/json' -Body (@{email=$config['APP_ADMIN_EMAIL'];password=$config['APP_ADMIN_PASSWORD']}|ConvertTo-Json);$token=$auth.accessToken;if(!$token){throw 'Administrator authentication did not return an access token.'}
  foreach($size in $DatasetSizes){Psql $EvaluationDatabase (Get-Content (Join-Path $PSScriptRoot 'sql/reset-performance-data.sql') -Raw) @('-v',"evaluation_db=$EvaluationDatabase");Psql $EvaluationDatabase (Get-Content (Join-Path $PSScriptRoot 'sql/seed-performance-data.sql') -Raw) @('-v',"row_count=$size")
   $heatUri="$base/api/analytics/heatmap?metric=TRUST&transportType=METRO&line=M9EVAL&window=ALL";$heat=@(Request 'analytics_heatmap' $heatUri $token);if(!$heat.Count -or !$heat[0].cellId){throw "Correctness failure: empty heatmap for $size"};$cell=[string]$heat[0].cellId;if($cell -notmatch '^-?\d+:-?\d+$'){throw "Correctness failure: heatmap returned malformed cellId '$cell' for $size"};$areaUri="$base/api/analytics/area?cellId=$cell&metric=TRUST&transportType=METRO&line=M9EVAL&window=ALL"
