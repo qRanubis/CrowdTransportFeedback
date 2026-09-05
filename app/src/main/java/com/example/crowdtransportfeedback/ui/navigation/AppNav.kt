@@ -27,6 +27,7 @@ import com.example.crowdtransportfeedback.ui.screens.FeedbackListScreen
 import com.example.crowdtransportfeedback.ui.viewmodel.FeedbackViewModel
 import com.example.crowdtransportfeedback.profile.ProfileApi
 import com.example.crowdtransportfeedback.ui.screens.*
+import com.example.crowdtransportfeedback.analytics.AnalyticsRepository
 
 object Routes {
     const val LIST = "list"
@@ -40,7 +41,7 @@ object Routes {
 }
 
 @Composable
-fun AppNav(vm: FeedbackViewModel, authRepository: AuthRepository, sessionManager: SessionManager, profileApi: ProfileApi) {
+fun AppNav(vm: FeedbackViewModel, authRepository: AuthRepository, sessionManager: SessionManager, profileApi: ProfileApi, analyticsRepository: AnalyticsRepository) {
     val sessionState by sessionManager.state.collectAsState()
     when (val state = sessionState) {
         SessionState.Loading -> {
@@ -51,7 +52,7 @@ fun AppNav(vm: FeedbackViewModel, authRepository: AuthRepository, sessionManager
             AuthScreen(authRepository, sessionManager)
             return
         }
-        is SessionState.Authenticated -> AuthenticatedNav(vm, state.user, sessionManager, profileApi)
+        is SessionState.Authenticated -> AuthenticatedNav(vm, state.user, sessionManager, profileApi, analyticsRepository)
     }
 }
 
@@ -60,7 +61,7 @@ private fun AuthenticatedNav(
     vm: FeedbackViewModel,
     user: AuthUser,
     sessionManager: SessionManager,
-    profileApi: ProfileApi
+    profileApi: ProfileApi, analyticsRepository: AnalyticsRepository
 ) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -99,7 +100,7 @@ private fun AuthenticatedNav(
                 )
             }
             composable(Routes.MAP) {
-                MapScreen(vm = vm, onFeedbackClick = { id ->
+                MapScreen(vm = vm, analyticsRepository = analyticsRepository, onFeedbackClick = { id ->
                     navController.navigate("${Routes.DETAIL}/$id")
                 })
             }

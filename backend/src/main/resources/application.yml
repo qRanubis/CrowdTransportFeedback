@@ -12,6 +12,7 @@ server.error:
   include-stacktrace: never
 management.endpoints.web.exposure.include: health
 app:
+  demo-seed-enabled: ${DEMO_SEED_ENABLED:false}
   jwt:
     secret: ${JWT_SECRET}
     access-lifetime: ${ACCESS_TOKEN_LIFETIME:PT20M}

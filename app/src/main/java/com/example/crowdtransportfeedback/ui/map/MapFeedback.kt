@@ -11,8 +11,19 @@ data class MapFeedbackMarker(
     val transportType: TransportType,
     val line: String,
     val overallRating: Double,
-    val publicUsername: String
+    val publicUsername: String,
+    val createdAt: Long
 )
+
+data class MapFeedbackGroup(val cellId:String,val latitude:Double,val longitude:Double,val feedback:List<MapFeedbackMarker>)
+
+fun feedbackGroups(markers:List<MapFeedbackMarker>):List<MapFeedbackGroup> = markers.groupBy { geoCellId(it.latitude,it.longitude) }.map { (id, rows) ->
+    val center=geoCellCenter(id); MapFeedbackGroup(id,center.first,center.second,rows.sortedByDescending { it.createdAt })
+}
+
+fun geoCellId(latitude:Double,longitude:Double):String { val r=6378137.0;val x=r*Math.toRadians(longitude);val y=r*kotlin.math.ln(kotlin.math.tan(Math.PI/4+Math.toRadians(latitude)/2));return "${kotlin.math.floor(x/250).toLong()}:${kotlin.math.floor(y/250).toLong()}" }
+fun geoCellCenter(id:String):Pair<Double,Double>{val (x,y)=id.split(":").map(String::toLong);val r=6378137.0;val mx=(x+.5)*250;val my=(y+.5)*250;return Math.toDegrees(2*kotlin.math.atan(kotlin.math.exp(my/r))-Math.PI/2) to Math.toDegrees(mx/r)}
+fun <T> newestPage(rows:List<T>,createdAt:(T)->Long,page:Int)=rows.sortedByDescending(createdAt).take(page*20)
 
 enum class MapFilter(val label: String, val transportType: TransportType?) {
     ALL("All", null),
@@ -38,7 +49,8 @@ fun FeedbackEntity.toMapFeedbackMarker(): MapFeedbackMarker? {
         transportType = type,
         line = line?.trim().orEmpty().ifBlank { "Unknown line" },
         overallRating = overallRating(),
-        publicUsername = createdByUsername?.trim()?.takeIf(String::isNotEmpty) ?: "anonymous"
+        publicUsername = createdByUsername?.trim()?.takeIf(String::isNotEmpty) ?: "anonymous",
+        createdAt = createdAt
     )
 }
 
