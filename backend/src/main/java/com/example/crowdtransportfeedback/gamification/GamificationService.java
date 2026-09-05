@@ -1,9 +1,9 @@
 package com.example.crowdtransportfeedback.gamification;
 import com.example.crowdtransportfeedback.common.ApiException; import com.example.crowdtransportfeedback.feedback.*; import com.example.crowdtransportfeedback.user.AppUser; import com.example.crowdtransportfeedback.moderation.*;
-import java.text.Normalizer; import java.time.*; import java.util.*; import org.springframework.http.HttpStatus; import org.springframework.stereotype.Service;
+import java.text.Normalizer; import java.time.*; import java.util.*; import org.springframework.beans.factory.annotation.Autowired; import org.springframework.http.HttpStatus; import org.springframework.stereotype.Service;
 @Service public class GamificationService {
  public static final int BASE_XP=10,FIRST_XP=40,TYPE_XP=40,LINE_XP=30; private final GamificationEventRepository events; private final UserAchievementRepository achievements; private final FeedbackRepository feedback; private final FeedbackReportRepository reports;
- public GamificationService(GamificationEventRepository e,UserAchievementRepository a,FeedbackRepository f,FeedbackReportRepository r){events=e;achievements=a;feedback=f;reports=r;}
+ @Autowired public GamificationService(GamificationEventRepository e,UserAchievementRepository a,FeedbackRepository f,FeedbackReportRepository r){events=e;achievements=a;feedback=f;reports=r;}
  GamificationService(GamificationEventRepository e,UserAchievementRepository a,FeedbackRepository f){this(e,a,f,null);}
  public static String normalizeLine(String line){return Normalizer.normalize(line.trim(),Normalizer.Form.NFKC).replaceAll("\\s+"," ").toUpperCase(Locale.ROOT);}
  public record Award(int xpAwarded,List<String> newAchievements){}

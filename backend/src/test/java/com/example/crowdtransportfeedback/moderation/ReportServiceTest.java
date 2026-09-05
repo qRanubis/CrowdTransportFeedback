@@ -8,4 +8,5 @@ class ReportServiceTest {
  @Test void rejectsDuplicate(){when(reports.findByFeedbackIdAndReporterId(feedbackId,reporterId)).thenReturn(Optional.of(mock(FeedbackReport.class)));assertEquals(HttpStatus.CONFLICT,assertThrows(ApiException.class,()->service.create(feedbackId,reporterId,new ReportDtos.CreateRequest(ReportReason.SPAM,null))).status);}
  @Test void requiresExistingFeedback(){UUID absent=UUID.randomUUID();assertEquals(HttpStatus.NOT_FOUND,assertThrows(ApiException.class,()->service.create(absent,reporterId,new ReportDtos.CreateRequest(ReportReason.SPAM,null))).status);}
  @Test void otherRequiresDetails(){assertEquals(HttpStatus.BAD_REQUEST,assertThrows(ApiException.class,()->service.create(feedbackId,reporterId,new ReportDtos.CreateRequest(ReportReason.OTHER," "))).status);}
+ @Test void detailsAreLimitedTo250Characters(){assertEquals(HttpStatus.BAD_REQUEST,assertThrows(ApiException.class,()->service.create(feedbackId,reporterId,new ReportDtos.CreateRequest(ReportReason.SPAM,"x".repeat(251)))).status);}
 }

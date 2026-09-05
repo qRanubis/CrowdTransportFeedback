@@ -15,6 +15,7 @@ import com.example.crowdtransportfeedback.data.remote.FeedbackApi
 import kotlinx.coroutines.launch
 import com.example.crowdtransportfeedback.admin.canReportFeedback
 import com.example.crowdtransportfeedback.admin.reportValidationError
+import com.example.crowdtransportfeedback.admin.reportStatusLabel
 import java.util.Locale
 
 @Composable
@@ -30,7 +31,7 @@ fun FeedbackDetailScreen(
 ) {
     val item by vm.getFeedbackById(id).collectAsState(initial = null)
     var isDeleting by rememberSaveable(id) { mutableStateOf(false) }
-    var reported by rememberSaveable(id) { mutableStateOf(false) }
+    var reportStatus by rememberSaveable(id) { mutableStateOf<String?>(null) }
     var reportOpen by rememberSaveable(id) { mutableStateOf(false) }
     var reportError by rememberSaveable(id) { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -66,11 +67,11 @@ fun FeedbackDetailScreen(
 
             val canReport = canReportFeedback(currentUserId, current.createdByUserId, current.syncState == SyncState.SYNCED)
             LaunchedEffect(current.feedbackId, canReport) {
-                if (canReport) runCatching { feedbackApi.myReport(current.feedbackId) }.onSuccess { reported = it.reported }
+                if (canReport) runCatching { feedbackApi.myReport(current.feedbackId) }.onSuccess { reportStatus = if (it.reported) it.status else null }
             }
             if (canReport) {
                 Spacer(modifier = Modifier.height(12.dp))
-                if (reported) Text("Reported · Pending review", color = MaterialTheme.colorScheme.primary)
+                if (reportStatus != null) Text(reportStatusLabel(reportStatus), color = MaterialTheme.colorScheme.primary)
                 else OutlinedButton(onClick = { reportOpen = true }) { Text("Report feedback") }
                 reportError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
@@ -96,7 +97,7 @@ fun FeedbackDetailScreen(
     if (reportOpen) ReportFeedbackDialog(onDismiss={reportOpen=false}) { reason, details ->
         scope.launch {
             val response=runCatching { feedbackApi.report(item!!.feedbackId,FeedbackApi.ReportRequest(reason,details.ifBlank { null })) }
-            if(response.getOrNull()?.isSuccessful==true){reported=true;reportOpen=false;reportError=null}else reportError="Could not submit report. Reporting requires a connection."
+            if(response.getOrNull()?.isSuccessful==true){reportStatus="PENDING";reportOpen=false;reportError=null}else reportError="Could not submit report. Reporting requires a connection."
         }
     }
 }

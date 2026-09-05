@@ -85,6 +85,11 @@ public class FeedbackService {
 
     @Transactional
     public void delete(UUID id, UUID requesterId, String requesterRole) {
+        delete(id, requesterId, requesterRole, null);
+    }
+
+    @Transactional
+    public void delete(UUID id, UUID requesterId, String requesterRole, String moderationNote) {
         Feedback entity = feedback.findById(id).orElseThrow(() ->
             new ApiException(HttpStatus.NOT_FOUND, "feedback_not_found", "Feedback was not found")
         );
@@ -100,7 +105,8 @@ public class FeedbackService {
         }
 
         if (reports != null && admin) {
-            if (reports.hasPending(id)) reports.resolve(id, requesterId, true, "Direct administrator deletion");
+            if (reports.hasPending(id)) reports.resolve(id, requesterId, true,
+                moderationNote == null ? "Direct administrator deletion" : moderationNote);
             else reports.auditDelete(id, requesterId);
         } else if (reports != null) reports.close(id);
         gamification.revoke(entity.owner, entity.feedbackId);

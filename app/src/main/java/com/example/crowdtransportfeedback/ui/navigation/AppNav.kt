@@ -135,7 +135,17 @@ private fun AuthenticatedNav(
             composable(Routes.PROFILE) { MyProfileScreen(profileApi,{navController.navigate(Routes.ACHIEVEMENTS) { launchSingleTop = true }},{navController.navigate(Routes.LEADERBOARD) { launchSingleTop = true }},{ avatarKey = it }) }
             composable(Routes.ACHIEVEMENTS) { AchievementsScreen(profileApi) }
             composable(Routes.LEADERBOARD) { LeaderboardScreen(profileApi){navController.navigate("${Routes.PUBLIC_PROFILE}/$it")} }
-            if (canAccessAdmin(user.role)) composable(Routes.ADMIN) { AdminDashboardScreen(adminApi) }
+            if (canAccessAdmin(user.role)) composable(Routes.ADMIN) {
+                AdminDashboardScreen(
+                    api = adminApi,
+                    onFeedback = { feedbackId ->
+                        vm.feedbackList.value.firstOrNull { it.feedbackId == feedbackId }?.let {
+                            navController.navigate("${Routes.DETAIL}/${it.localId}")
+                        }
+                    },
+                    onUser = { username -> navController.navigate("${Routes.PUBLIC_PROFILE}/$username") }
+                )
+            }
             composable("${Routes.PUBLIC_PROFILE}/{username}",arguments=listOf(navArgument("username"){type=NavType.StringType})){PublicProfileScreen(profileApi,it.arguments?.getString("username").orEmpty())}
         }
     }

@@ -9,6 +9,7 @@ import java.util.UUID; import org.springframework.http.HttpStatus; import org.sp
   if(item.owner.getId().equals(reporterId))throw new ApiException(HttpStatus.FORBIDDEN,"own_feedback_report","You cannot report your own feedback");
   if(request.reason()==null)throw new ApiException(HttpStatus.BAD_REQUEST,"invalid_report_reason","A report reason is required");
   String details=request.details()==null?null:request.details().trim(); if(details!=null&&details.isEmpty())details=null;
+  if(details!=null&&details.length()>250)throw new ApiException(HttpStatus.BAD_REQUEST,"report_details_too_long","Details must be at most 250 characters");
   if(request.reason()==ReportReason.OTHER&&details==null)throw new ApiException(HttpStatus.BAD_REQUEST,"report_details_required","Details are required for OTHER");
   if(reports.findByFeedbackIdAndReporterId(feedbackId,reporterId).isPresent())throw new ApiException(HttpStatus.CONFLICT,"duplicate_report","You have already reported this feedback");
   var saved=reports.save(new FeedbackReport(feedbackId,users.getReferenceById(reporterId),request.reason(),details));
