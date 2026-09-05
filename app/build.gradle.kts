@@ -6,6 +6,16 @@ plugins {
     id("org.jetbrains.kotlin.kapt")
 }
 
+val mapsApiKey = providers.gradleProperty("MAPS_API_KEY")
+    .orElse(providers.provider {
+        val localProperties = rootProject.file("local.properties")
+        if (localProperties.exists()) java.util.Properties().apply {
+            localProperties.inputStream().use(::load)
+        }.getProperty("MAPS_API_KEY", "") else ""
+    })
+    .get()
+    .trim()
+
 android {
     namespace = "com.example.crowdtransportfeedback"
     compileSdk {
@@ -20,6 +30,8 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        manifestPlaceholders["mapsApiKey"] = mapsApiKey.ifBlank { "MISSING_MAPS_API_KEY" }
+        buildConfigField("boolean", "MAPS_API_KEY_CONFIGURED", mapsApiKey.isNotBlank().toString())
     }
 
     buildTypes {
@@ -40,6 +52,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -67,6 +80,7 @@ dependencies {
 
     // gps
     implementation("com.google.android.gms:play-services-location:21.3.0")
+    implementation("com.google.maps.android:maps-compose:6.4.1")
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
