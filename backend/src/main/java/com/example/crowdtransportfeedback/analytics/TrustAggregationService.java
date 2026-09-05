@@ -2,6 +2,7 @@ package com.example.crowdtransportfeedback.analytics;
 
 import com.example.crowdtransportfeedback.feedback.*;
 import java.time.*; import java.util.*; import java.util.function.ToDoubleFunction; import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -9,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class TrustAggregationService {
  static final double PRIOR_MEAN=3, PRIOR_WEIGHT=2, HALF_LIFE_DAYS=30;
  private final FeedbackRepository repository; private final Clock clock;
+ @Autowired
  public TrustAggregationService(FeedbackRepository repository){this(repository,Clock.systemUTC());}
  TrustAggregationService(FeedbackRepository repository,Clock clock){this.repository=repository;this.clock=clock;}
 
