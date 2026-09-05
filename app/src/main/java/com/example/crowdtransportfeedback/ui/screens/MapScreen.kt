@@ -53,6 +53,7 @@ fun MapScreen(vm: FeedbackViewModel, onFeedbackClick: (Long) -> Unit) {
             ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED)
     }
     var currentLocation by remember { mutableStateOf<Coordinates?>(null) }
+    var pendingFeedbackId by remember { mutableStateOf<Long?>(null) }
 
     fun locate() {
         if (!hasPermission) return
@@ -70,6 +71,12 @@ fun MapScreen(vm: FeedbackViewModel, onFeedbackClick: (Long) -> Unit) {
         if (hasPermission) locate()
     }
     LaunchedEffect(hasPermission) { if (hasPermission && currentLocation == null) locate() }
+    LaunchedEffect(pendingFeedbackId) {
+        pendingFeedbackId?.let { id ->
+            pendingFeedbackId = null
+            onFeedbackClick(id)
+        }
+    }
 
     Box(Modifier.fillMaxSize()) {
         GoogleMap(
@@ -89,7 +96,7 @@ fun MapScreen(vm: FeedbackViewModel, onFeedbackClick: (Long) -> Unit) {
                         title = "${marker.transportType.displayName} ${marker.line}",
                         snippet = String.format(Locale.US, "Overall rating: %.1f/5 · @%s", marker.overallRating, marker.publicUsername),
                         icon = BitmapDescriptorFactory.defaultMarker(markerHue(marker.transportType)),
-                        onInfoWindowClick = { onFeedbackClick(marker.localId) }
+                        onInfoWindowClick = { pendingFeedbackId = marker.localId }
                     )
                 }
             }
