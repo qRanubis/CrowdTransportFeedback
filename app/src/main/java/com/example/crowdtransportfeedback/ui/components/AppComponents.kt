@@ -6,23 +6,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.crowdtransportfeedback.data.local.SyncState
 import com.example.crowdtransportfeedback.ui.screens.rejectionReasonLabel
 import com.example.crowdtransportfeedback.ui.theme.*
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun AppTopBar(title: String, onBack: (() -> Unit)? = null, onHome: (() -> Unit)? = null, actions: @Composable RowScope.() -> Unit = {}) {
-    TopAppBar(
-        title = { Text(title, maxLines = 1) },
-        navigationIcon = { if (onBack != null) TextButton(onClick = onBack, modifier = Modifier.heightIn(min = 48.dp)) { Text("‹ Back") } },
-        actions = { if (onHome != null) TextButton(onClick = onHome, modifier = Modifier.heightIn(min = 48.dp)) { Text("⌂ Home") }; actions() },
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
-    )
-}
 
 @Composable
 fun SectionCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) =
@@ -51,8 +39,6 @@ fun StatusChip(state: SyncState, rejectionReason: String? = null) {
         Text(label, Modifier.padding(horizontal = 10.dp, vertical = 5.dp), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
     }
 }
-
-@Composable fun LoadingState(modifier: Modifier = Modifier) = Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
 
 @Composable
 fun EmptyState(title: String, message: String, modifier: Modifier = Modifier, action: (@Composable () -> Unit)? = null) =

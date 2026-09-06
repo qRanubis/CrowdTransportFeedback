@@ -6,11 +6,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.crowdtransportfeedback.profile.*
 import com.example.crowdtransportfeedback.ui.components.*
 import com.example.crowdtransportfeedback.ui.theme.SuccessContainer
+import com.example.crowdtransportfeedback.ui.theme.DarkSuccessContainer
 import kotlinx.coroutines.launch
 
 private sealed interface RemoteState<out T> {
@@ -52,13 +54,15 @@ fun MyProfileScreen(api: ProfileApi, onAchievements: () -> Unit, onLeaderboard: 
 fun PublicProfileScreen(api: ProfileApi, username: String) {
     var state by remember { mutableStateOf<RemoteState<ProfileDto>>(RemoteState.Loading) }
     LaunchedEffect(username) { state = runCatching { api.profile(username) }.fold({ RemoteState.Ready(it) }, { RemoteState.Failed("Public profile unavailable") }) }
-    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Public profile", style = MaterialTheme.typography.headlineMedium)
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 16.dp)) {
+      item { Text("Public profile", style = MaterialTheme.typography.headlineMedium) }
+      item {
         when (val current = state) {
             RemoteState.Loading -> CircularProgressIndicator()
             is RemoteState.Failed -> Text(current.message, color = MaterialTheme.colorScheme.error)
-            is RemoteState.Ready -> with(current.value) { SectionCard { Text("${avatarSymbol(avatarKey)} @$username", style = MaterialTheme.typography.titleLarge); Text("Level ${level.level} · ${level.title}"); Text("$totalXp XP", color = MaterialTheme.colorScheme.primary) }; Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { StatCard("Contributions", "$contributionCount", Modifier.weight(1f)); StatCard("Lines", "$differentLineCount", Modifier.weight(1f)) }; Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { StatCard("Transport types", "$transportTypeCount", Modifier.weight(1f)); StatCard("Achievements", "$unlockedAchievementCount", Modifier.weight(1f)) }; Text("Pinned achievements", style = MaterialTheme.typography.titleLarge); if (pinnedAchievements.isEmpty()) Text("No pinned achievements", color = MaterialTheme.colorScheme.onSurfaceVariant) else pinnedAchievements.forEach { SectionCard { Text("🏅 ${it.title}"); Text(it.description, style = MaterialTheme.typography.bodySmall) } } }
+            is RemoteState.Ready -> with(current.value) { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { SectionCard { Text("${avatarSymbol(avatarKey)} @$username", style = MaterialTheme.typography.titleLarge); Text("Level ${level.level} · ${level.title}"); Text("$totalXp XP", color = MaterialTheme.colorScheme.primary) }; Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { StatCard("Contributions", "$contributionCount", Modifier.weight(1f)); StatCard("Lines", "$differentLineCount", Modifier.weight(1f)) }; Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { StatCard("Transport types", "$transportTypeCount", Modifier.weight(1f)); StatCard("Achievements", "$unlockedAchievementCount", Modifier.weight(1f)) }; Text("Pinned achievements", style = MaterialTheme.typography.titleLarge); if (pinnedAchievements.isEmpty()) Text("No pinned achievements", color = MaterialTheme.colorScheme.onSurfaceVariant) else pinnedAchievements.forEach { SectionCard { Text("🏅 ${it.title}"); Text(it.description, style = MaterialTheme.typography.bodySmall) } } } }
         }
+      }
     }
 }
 
@@ -69,12 +73,12 @@ fun AchievementsScreen(api: ProfileApi) {
     val snackbar = remember { SnackbarHostState() }
     suspend fun refresh() { state = runCatching { api.achievements() }.fold({ RemoteState.Ready(it) }, { RemoteState.Failed("Achievements unavailable") }) }
     LaunchedEffect(Unit) { refresh() }
-    Column {
+    Column(Modifier.fillMaxSize()) {
       SnackbarHost(snackbar)
       when (val current = state) {
         RemoteState.Loading -> CircularProgressIndicator()
         is RemoteState.Failed -> Text(current.message, color = MaterialTheme.colorScheme.error)
-        is RemoteState.Ready -> LazyColumn(Modifier.padding(16.dp)) {
+        is RemoteState.Ready -> LazyColumn(Modifier.weight(1f).padding(horizontal = 16.dp), contentPadding = PaddingValues(vertical = 12.dp)) {
             val badges = current.value
             item { Text("Achievements", style = MaterialTheme.typography.headlineMedium); Text(achievementSummary(badges), color = MaterialTheme.colorScheme.onSurfaceVariant) }
             badges.groupBy { it.category }.forEach { (category, list) ->
@@ -89,13 +93,17 @@ fun AchievementsScreen(api: ProfileApi) {
                                 runCatching { api.updatePins(pins) }.onSuccess { refresh() }.onFailure { error -> snackbar.showSnackbar("Could not update pinned achievements (${error.message ?: "network error"})") }
                             }
                         }
-                    }, colors = CardDefaults.cardColors(containerColor = if (badge.unlocked) SuccessContainer else MaterialTheme.colorScheme.surfaceVariant), border = if (badge.pinned) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) { Text((if (badge.unlocked) "✓ " else "🔒 ") + badge.title, style = MaterialTheme.typography.titleMedium); Text(badge.description); if (badge.pinned) AssistChip(onClick = {}, label = { Text("Pinned") }); LinearProgressIndicator(progress = { badge.currentProgress.toFloat() / badge.targetProgress.coerceAtLeast(1) }, Modifier.fillMaxWidth()); Text("${badge.currentProgress} / ${badge.targetProgress}"); badge.unlockedAt?.let { Text("Unlocked $it", style = MaterialTheme.typography.bodySmall) } } }
+                    }, colors = CardDefaults.cardColors(containerColor = if (badge.unlocked) achievementSuccessContainer() else MaterialTheme.colorScheme.surfaceVariant), border = if (badge.pinned) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) { Text((if (badge.unlocked) "✓ " else "🔒 ") + badge.title, style = MaterialTheme.typography.titleMedium); Text(badge.description); if (badge.pinned) AssistChip(onClick = {}, label = { Text("Pinned") }); LinearProgressIndicator(progress = { badge.currentProgress.toFloat() / badge.targetProgress.coerceAtLeast(1) }, Modifier.fillMaxWidth()); Text("${badge.currentProgress} / ${badge.targetProgress}"); badge.unlockedAt?.let { Text("Unlocked $it", style = MaterialTheme.typography.bodySmall) } } }
                 }
             }
         }
       }
     }
 }
+
+@Composable
+private fun achievementSuccessContainer() =
+    if (MaterialTheme.colorScheme.background.red < .2f) DarkSuccessContainer else SuccessContainer
 
 internal fun achievementSummary(badges: List<BadgeDto>): String =
     "${badges.count { it.unlocked }} of ${badges.size} unlocked"
@@ -111,14 +119,14 @@ fun LeaderboardScreen(api: ProfileApi, onUser: (String) -> Unit) {
     var metric by remember { mutableStateOf("XP") }; var period by remember { mutableStateOf("ALL_TIME") }
     var state by remember { mutableStateOf<RemoteState<LeaderboardDto>>(RemoteState.Loading) }
     LaunchedEffect(metric, period) { state = RemoteState.Loading; state = runCatching { api.leaderboard(metric, period) }.fold({ RemoteState.Ready(it) }, { RemoteState.Failed("Leaderboard unavailable") }) }
-    Column(Modifier.padding(16.dp)) {
+    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Leaderboard", style = MaterialTheme.typography.headlineMedium)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { listOf("XP", "ACHIEVEMENTS", "CONTRIBUTIONS").forEach { FilterChip(selected = metric == it, onClick = { metric = it }, label = { Text(it.lowercase().replaceFirstChar(Char::uppercase)) }) } }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { listOf("ALL_TIME", "THIS_MONTH").forEach { FilterChip(selected = period == it, onClick = { period = it }, label = { Text(it.lowercase().replace('_', ' ').replaceFirstChar(Char::uppercase)) }) } }
         when (val current = state) {
             RemoteState.Loading -> CircularProgressIndicator()
             is RemoteState.Failed -> Text(current.message, color = MaterialTheme.colorScheme.error)
-            is RemoteState.Ready -> { Text("Your rank: #${current.value.currentUser.rank ?: "—"}", style = MaterialTheme.typography.titleMedium); LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(current.value.top) { entry -> Card(Modifier.fillMaxWidth().clickable { onUser(entry.username) }, colors = CardDefaults.cardColors(containerColor = if (entry.currentUser) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)) { Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) { Text(when(entry.rank) { 1L -> "🥇"; 2L -> "🥈"; 3L -> "🥉"; else -> "#${entry.rank}" }, Modifier.width(40.dp)); Text("${avatarSymbol(entry.avatarKey)} @${entry.username}", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium); Text("${entry.metricValue}${if (entry.currentUser) " · YOU" else ""}") } } } } }
+            is RemoteState.Ready -> { Text("Your rank: #${current.value.currentUser.rank ?: "—"}", style = MaterialTheme.typography.titleMedium); LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 8.dp)) { items(current.value.top) { entry -> Card(Modifier.fillMaxWidth().clickable { onUser(entry.username) }, colors = CardDefaults.cardColors(containerColor = if (entry.currentUser) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)) { Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) { Text(when(entry.rank) { 1L -> "🥇"; 2L -> "🥈"; 3L -> "🥉"; else -> "#${entry.rank}" }, Modifier.width(40.dp)); Text("${avatarSymbol(entry.avatarKey)} @${entry.username}", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium); Text("${entry.metricValue}${if (entry.currentUser) " · YOU" else ""}") } } } } }
         }
     }
 }

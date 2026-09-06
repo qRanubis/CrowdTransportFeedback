@@ -5,11 +5,9 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -51,11 +49,19 @@ fun MapScreen(vm:FeedbackViewModel,analyticsRepository:AnalyticsRepository,onFee
  fun locate(){if(permission)AndroidLocationProvider(context).getLocation{it.getOrNull()?.let{p->location=p;scope.launch{camera.animate(CameraUpdateFactory.newLatLngZoom(LatLng(p.latitude,p.longitude),15f))}}}}
  val launcher=rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()){permission=it.values.any{v->v};if(permission)locate()};LaunchedEffect(permission){if(permission&&location==null)locate()}
  Column(Modifier.fillMaxSize()){
-  Surface(tonalElevation=2.dp){Column(Modifier.fillMaxWidth().padding(horizontal=12.dp,vertical=8.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){
+  Surface(tonalElevation=2.dp){Column(Modifier.fillMaxWidth().padding(horizontal=12.dp,vertical=8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text("Map",style=MaterialTheme.typography.titleLarge,modifier=Modifier.weight(1f));MapMode.entries.forEach{option->FilterChip(mode==option,{mode=option;if(option==MapMode.FEEDBACK)error=null},{Text(option.name.lowercase().replaceFirstChar(Char::uppercase))},modifier=Modifier.padding(start=6.dp))}}
-   if(mode==MapMode.HEATMAP){ChipRow(AnalyticsMetric.entries,filter.metric,{filter=filter.copy(metric=it)}){it.name.lowercase().replaceFirstChar(Char::uppercase)};ChipRow(AnalyticsWindow.entries,filter.window,{filter=filter.copy(window=it)}){it.label};Text(filter.metric.legend(),style=MaterialTheme.typography.labelMedium)}
-   ChipRow(MapFilter.entries,mapFilter,{filter=filter.withTransport(it.transportType?.name)}){it.label}
-   filter.transportType?.let{name->LineSelector(TransportType.valueOf(name),filter.line){filter=filter.copy(line=it)}}
+   Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+    CompactSelector("Transport",mapFilter,MapFilter.entries.toList(),{it.label},{filter=filter.withTransport(it.transportType?.name)},Modifier.weight(1f))
+    filter.transportType?.let{name->CompactLineSelector(TransportType.valueOf(name),filter.line,{filter=filter.copy(line=it)},Modifier.weight(1f))}
+   }
+   if(mode==MapMode.HEATMAP){
+    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+     CompactSelector("Metric",filter.metric,AnalyticsMetric.entries.toList(),{it.name.lowercase().replaceFirstChar(Char::uppercase)},{filter=filter.copy(metric=it)},Modifier.weight(1f))
+     CompactSelector("Time",filter.window,AnalyticsWindow.entries.toList(),{it.label},{filter=filter.copy(window=it)},Modifier.weight(1f))
+    }
+    Text(filter.metric.legend(),style=MaterialTheme.typography.labelMedium)
+   }
    if(loading)LinearProgressIndicator(Modifier.fillMaxWidth());heatmapErrorForMode(mode,error)?.let{Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.labelMedium)}
    if(shouldShowHeatmapEmpty(mode,loading,error,cells.size))Surface(color=MaterialTheme.colorScheme.surfaceVariant,shape=MaterialTheme.shapes.medium){Text("No analytics match these filters",modifier=Modifier.padding(horizontal=12.dp,vertical=10.dp),style=MaterialTheme.typography.bodyMedium)}
   }}
@@ -71,8 +77,8 @@ fun MapScreen(vm:FeedbackViewModel,analyticsRepository:AnalyticsRepository,onFee
  area?.let{a->ModalBottomSheet(onDismissRequest={area=null;areaLocalGroup=null}){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){Text("Area details",style=MaterialTheme.typography.headlineSmall);Text("${filter.metric.name.lowercase().replaceFirstChar(Char::uppercase)}  ${"%.1f".format(a.score)} / 5");Text("Confidence ${a.confidence} · ${a.feedbackCount} feedbacks · ${a.uniqueContributorCount} contributors");Text("Last contribution: ${formatDateTime(a.latestCreatedAt)}");Text("Trust ${"%.1f".format(a.trustScore)} · Punctuality ${"%.1f".format(a.punctualityScore)}");Text("Cleanliness ${"%.1f".format(a.cleanlinessScore)} · Crowding comfort ${"%.1f".format(a.crowdingComfortScore)}");Text("Latest feedbacks",style=MaterialTheme.typography.titleMedium);a.latestFeedbacks.forEach{p->Preview("${p.transportType.lowercase().replaceFirstChar(Char::uppercase)} ${p.line}",p.overallRating,p.createdByUsername,p.createdAt){feedback.firstOrNull{it.feedbackId==p.feedbackId}?.let{onFeedbackClick(it.localId)}}};val local=areaLocalGroup;if(local!=null&&local.feedback.size==a.feedbackCount)TextButton({selectedGroup=local;showAll=true;area=null;areaLocalGroup=null}){Text("View all ${a.feedbackCount} feedbacks")}else Text("Full list unavailable locally (${local?.feedback?.size?:0} of ${a.feedbackCount} matching feedbacks synchronized).",style=MaterialTheme.typography.labelMedium);Spacer(Modifier.height(20.dp))}}}
 }
 
-@Composable private fun <T> ChipRow(values:Iterable<T>,selected:T,onSelect:(T)->Unit,label:(T)->String){Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)){values.forEach{FilterChip(selected==it,{onSelect(it)},{Text(label(it))})}}}
-@Composable private fun LineSelector(type:TransportType,selected:String?,onSelect:(String?)->Unit){var open by remember{mutableStateOf(false)};Box{AssistChip({open=true},{Text(selected?:"All lines")});DropdownMenu(open,{open=false}){DropdownMenuItem({Text("All lines")},{onSelect(null);open=false});BucharestTransitCatalog.linesFor(type).forEach{line->DropdownMenuItem({Text(line)},{onSelect(line);open=false})}}}}
+@Composable private fun <T> CompactSelector(label:String,selected:T,values:List<T>,itemLabel:(T)->String,onSelect:(T)->Unit,modifier:Modifier=Modifier){var open by remember{mutableStateOf(false)};Box(modifier){OutlinedButton({open=true},Modifier.fillMaxWidth().heightIn(min=48.dp)){Text("$label: ${itemLabel(selected)}",maxLines=1)};DropdownMenu(open,{open=false}){values.forEach{value->DropdownMenuItem({Text(itemLabel(value))},{onSelect(value);open=false})}}}}
+@Composable private fun CompactLineSelector(type:TransportType,selected:String?,onSelect:(String?)->Unit,modifier:Modifier=Modifier){var open by remember{mutableStateOf(false)};Box(modifier){OutlinedButton({open=true},Modifier.fillMaxWidth().heightIn(min=48.dp)){Text("Line: ${selected?:"All"}",maxLines=1)};DropdownMenu(open,{open=false}){DropdownMenuItem({Text("All lines")},{onSelect(null);open=false});BucharestTransitCatalog.linesFor(type).forEach{line->DropdownMenuItem({Text(line)},{onSelect(line);open=false})}}}}
 @Composable private fun Preview(title:String,rating:Double,user:String,created:Long,onClick:()->Unit){Column(Modifier.fillMaxWidth().clickable(onClick=onClick).padding(horizontal=16.dp,vertical=8.dp)){Text(title,style=MaterialTheme.typography.titleSmall);Text(String.format(Locale.US,"Overall rating %.1f/5 · @%s",rating,user));Text(DateFormat.getDateTimeInstance(DateFormat.SHORT,DateFormat.SHORT).format(Date(created)),style=MaterialTheme.typography.labelSmall)}}
 private fun formatDateTime(timestamp:Long):String=DateFormat.getDateTimeInstance(DateFormat.MEDIUM,DateFormat.SHORT).format(Date(timestamp))
 internal fun semanticColor(score:Double)=when{score<1.8->Color(0xffd32f2f);score<2.6->Color(0xfff57c00);score<3.4->Color(0xffffd600);score<4.2->Color(0xff8bc34a);else->Color(0xff2e7d32)}

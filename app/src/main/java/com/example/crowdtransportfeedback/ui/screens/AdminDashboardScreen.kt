@@ -101,19 +101,23 @@ private fun ModerationCard(api: AdminApi, row: QueueItem, reload: () -> Unit) {
     var detail by remember { mutableStateOf<ModerationDetail?>(null) }
     Card(Modifier.fillMaxWidth().padding(8.dp)) {
         Column(Modifier.padding(12.dp)) {
-            Text("${row.transportType} / ${row.line}", style = MaterialTheme.typography.titleMedium)
+            Text("${friendlyAdminLabel(row.transportType)} ${row.line}", style = MaterialTheme.typography.titleMedium)
             Text("@${row.authorUsername} · ${row.reportCount} pending reports")
-            Text(row.reasonCounts.entries.joinToString { "${it.key}: ${it.value}" })
+            Column(Modifier.fillMaxWidth()) {
+                row.reasonCounts.entries.forEach { (reason, count) ->
+                    SuggestionChip(onClick = {}, label = { Text("${friendlyAdminLabel(reason)} · $count") })
+                }
+            }
             TextButton({ scope.launch { detail = runCatching { api.detail(row.feedbackId) }.getOrNull() } }) { Text("Inspect reports") }
             detail?.let {
                 Divider()
                 Text("Author: @${it.feedback.createdByUsername ?: row.authorUsername}")
-                Text("${it.feedback.transportType?.name ?: row.transportType} / ${it.feedback.line ?: row.line}")
+                Text("${friendlyAdminLabel(it.feedback.transportType?.name ?: row.transportType)} ${it.feedback.line ?: row.line}")
                 Text("Overall score: ${it.feedback.overallRating ?: it.feedback.score}")
                 it.feedback.comment?.takeIf(String::isNotBlank)?.let { comment -> Text("Comment: $comment") }
                 Spacer(Modifier.height(8.dp))
                 it.reports.forEach { report ->
-                    Text("@${report.reporterUsername}: ${report.reason}")
+                    Text("@${report.reporterUsername}: ${friendlyAdminLabel(report.reason)}")
                     report.details?.takeIf(String::isNotBlank)?.let { details -> Text(details) }
                 }
             }
@@ -148,7 +152,7 @@ private fun FeedbackTab(api: AdminApi, onFeedback: suspend (String) -> Boolean) 
                 LazyColumn(Modifier.weight(1f)) {
                     items(result.content) { row ->
                         ListItem(
-                            headlineContent = { Text("${row.transportType} / ${row.line} · ${row.score}") },
+                            headlineContent = { Text("${friendlyAdminLabel(row.transportType)} ${row.line} · ${row.score}") },
                             supportingContent = { Text("@${row.username}${row.comment?.let { " — $it" }.orEmpty()}") },
                             modifier = Modifier.clickable { scope.launch { navigationError = !onFeedback(row.feedbackId) } }
                         )
@@ -228,14 +232,17 @@ private fun AdminFilters(state: AdminFilterState, showUsername: Boolean, onChang
 @Composable
 private fun ChoiceMenu(label: String, value: String?, options: List<String?>, enabled: Boolean = true, onSelect: (String?) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
-    val allLabel = if (label == "Line") "All lines" else "All $label"
+    val allLabel = if (label == "Line") "All lines" else "All ${label.lowercase()}"
     Box {
-        OutlinedButton({ expanded = true }, enabled = enabled) { Text(value ?: allLabel) }
+        OutlinedButton({ expanded = true }, enabled = enabled) { Text(value?.let(::friendlyAdminLabel) ?: allLabel) }
         DropdownMenu(expanded, { expanded = false }) {
-            options.forEach { option -> DropdownMenuItem({ Text(option ?: allLabel) }, { onSelect(option); expanded = false }) }
+            options.forEach { option -> DropdownMenuItem({ Text(option?.let(::friendlyAdminLabel) ?: allLabel) }, { onSelect(option); expanded = false }) }
         }
     }
 }
+
+internal fun friendlyAdminLabel(value: String): String =
+    value.lowercase().replace('_', ' ').replaceFirstChar(Char::uppercase)
 
 @Composable
 private fun Pager(page: Int, totalPages: Int, previous: () -> Unit, next: () -> Unit) {

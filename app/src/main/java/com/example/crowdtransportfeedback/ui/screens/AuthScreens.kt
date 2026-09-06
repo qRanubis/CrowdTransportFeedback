@@ -7,7 +7,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -42,7 +41,7 @@ fun AuthScreen(repository: AuthRepository, session: SessionManager) {
                 Text(if (register) "Join the community and improve every trip." else "Sign in to share transport feedback.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedTextField(email, { email = it; emailError = null }, Modifier.fillMaxWidth(), label = { Text("Email") }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email), isError = emailError != null,
-                    supportingText = emailError?.let { value -> {{ Text(value) }} }, enabled = !loading)
+                    supportingText = errorSupportingText(emailError), enabled = !loading)
                 if (register) OutlinedTextField(username, { username = it; usernameError = null }, Modifier.fillMaxWidth(), label = { Text("Username") }, singleLine = true,
                     isError = usernameError != null, supportingText = { Text(usernameError ?: "3–20 lowercase letters and digits") }, enabled = !loading)
                 PasswordField("Password", password, { password = it; passwordError = null }, passwordVisible, { passwordVisible = !passwordVisible }, passwordError, loading)
@@ -53,10 +52,19 @@ fun AuthScreen(repository: AuthRepository, session: SessionManager) {
                 serverError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
                 Button(onClick = {
                     focus.clearFocus(); serverError = null
-                    emailError = if (!(if (register) isValidRegistrationEmail(email) else isValidLoginEmail(email))) "Enter a valid email address." else null
-                    usernameError = if (register && !isValidUsername(username)) "Username must be 3–20 characters using only lowercase letters and digits." else null
-                    passwordError = when { password.isBlank() -> "Enter your password."; register -> registrationPasswordError(password); else -> null }
-                    confirmError = if (register && password != confirm) "Passwords do not match." else null
+                    if (!register) {
+                        // Login validation is deliberately sequential: do not distract from
+                        // the first actionable error or contact the backend prematurely.
+                        emailError = if (!isValidLoginEmail(email)) "Enter a valid email address." else null
+                        passwordError = if (emailError == null && password.isBlank()) "Enter your password." else null
+                        usernameError = null
+                        confirmError = null
+                    } else {
+                        emailError = if (!isValidRegistrationEmail(email)) "Enter a valid email address." else null
+                        usernameError = if (!isValidUsername(username)) "Username must be 3–20 characters using only lowercase letters and digits." else null
+                        passwordError = if (password.isBlank()) "Enter your password." else registrationPasswordError(password)
+                        confirmError = if (password != confirm) "Passwords do not match." else null
+                    }
                     if (emailError == null && usernameError == null && passwordError == null && confirmError == null) {
                         loading = true; scope.launch {
                             runCatching { if (register) repository.register(email, username, password) else repository.login(email, password) }
@@ -81,7 +89,10 @@ fun AuthScreen(repository: AuthRepository, session: SessionManager) {
     OutlinedTextField(value, change, Modifier.fillMaxWidth(), label = { Text(label) }, singleLine = true, enabled = !loading,
         visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), isError = error != null,
-        supportingText = error?.let { value -> {{ Text(value) }} }, trailingIcon = { TextButton(onClick = toggle) { Text(if (visible) "Hide" else "Show") } })
+        supportingText = errorSupportingText(error), trailingIcon = { TextButton(onClick = toggle) { Text(if (visible) "Hide" else "Show") } })
+
+private fun errorSupportingText(message: String?): (@Composable () -> Unit)? =
+    message?.let { { Text(it) } }
 
 internal fun authenticationError(error: Throwable, registering: Boolean): String = when {
     error is IOException -> "Unable to connect. Check your internet connection and try again."
