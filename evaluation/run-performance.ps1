@@ -16,6 +16,16 @@ $container='crowdtransportfeedback-m9-backend';$base="http://localhost:$BackendP
 $out=Join-Path $resultsDir 'performance-results.csv';$metadata=Join-Path $resultsDir 'performance-environment.txt';Write-Warning "This run overwrites $out and $metadata"
 function Compose([string[]]$Arguments){& docker compose --project-directory $root @Arguments;if($LASTEXITCODE){throw "docker compose failed: $($Arguments -join ' ')"}}
 function Psql([string]$Database,[string]$Sql,[string[]]$Variables=@()){ $args=@('compose','--project-directory',$root,'exec','-T','postgres','psql','-v','ON_ERROR_STOP=1','-U',$dbUser,'-d',$Database)+$Variables; $Sql | & docker @args;if($LASTEXITCODE){throw 'PostgreSQL evaluation command failed.'} }
+function EvaluationSchemaExists(){
+ $args=@('compose','--project-directory',$root,'exec','-T','postgres','psql','-v','ON_ERROR_STOP=1','-t','-A','-U',$dbUser,'-d',$EvaluationDatabase,'-c',"SELECT to_regclass('public.app_user') IS NOT NULL")
+ $previousPreference=$ErrorActionPreference
+ try{$ErrorActionPreference='Continue';$nativeOutput=& docker @args 2>&1;$dockerExitCode=$LASTEXITCODE}
+ finally{$ErrorActionPreference=$previousPreference}
+ if($dockerExitCode -ne 0){throw "PostgreSQL evaluation schema detection failed (exit code $dockerExitCode)."}
+ $values=@($nativeOutput|ForEach-Object{$_.ToString().Trim()}|Where-Object{$_ -eq 't' -or $_ -eq 'f'})
+ if($values.Count -ne 1){throw 'PostgreSQL evaluation schema detection returned an unexpected response.'}
+ return $values[0] -eq 't'
+}
 function Request([string]$Name,[string]$Uri,[string]$Token){
  try{return Invoke-RestMethod -Uri $Uri -Headers @{Authorization="Bearer $Token"} -Method Get}
  catch{
@@ -68,6 +78,10 @@ $rows=@()
 $benchmarkError=$null
 try{
  Compose @('up','-d','postgres'); Psql 'postgres' "SELECT 'CREATE DATABASE $EvaluationDatabase' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname='$EvaluationDatabase')\gexec"
+ if(EvaluationSchemaExists){
+  Write-Host 'Existing evaluation schema detected; cleaning previous M9 dataset before backend startup.'
+  Psql $EvaluationDatabase (Get-Content (Join-Path $PSScriptRoot 'sql/reset-performance-data.sql') -Raw) @('-v',"evaluation_db=$EvaluationDatabase")
+ }else{Write-Host 'Fresh evaluation database detected; pre-start cleanup skipped until Flyway creates schema.'}
  & docker build -t crowdtransportfeedback-m9-backend-image (Join-Path $root 'backend');if($LASTEXITCODE){throw 'Backend image build failed.'}
  $postgresId=(& docker compose --project-directory $root ps -q postgres).Trim();$network=(& docker inspect $postgresId --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}').Trim()
  RemoveEvaluationContainerIfExists
