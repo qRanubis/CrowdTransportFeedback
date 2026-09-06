@@ -17,7 +17,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(SecurityConfigHealthTest.ProbeController.class)
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class, ApiExceptionHandler.class})
+@Import({SecurityConfig.class, JwtAuthenticationFilter.class, ApiExceptionHandler.class,
+    SecurityConfigHealthTest.ProbeController.class})
 class SecurityConfigHealthTest {
     @Autowired MockMvc mvc;
     @MockBean JwtService jwt;
@@ -44,7 +45,7 @@ class SecurityConfigHealthTest {
     }
 
     @RestController
-    static class ProbeController {
+    public static class ProbeController {
         @GetMapping({"/actuator/health", "/actuator/health/readiness", "/actuator/health/liveness", "/actuator/env", "/api/protected", "/api/admin/probe"})
         String probe() { return "ok"; }
     }
