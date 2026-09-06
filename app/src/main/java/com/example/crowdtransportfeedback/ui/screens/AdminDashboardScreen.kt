@@ -110,7 +110,7 @@ private fun ModerationCard(api: AdminApi, row: QueueItem, reload: () -> Unit) {
             }
             TextButton({ scope.launch { detail = runCatching { api.detail(row.feedbackId) }.getOrNull() } }) { Text("Inspect reports") }
             detail?.let {
-                Divider()
+                HorizontalDivider()
                 Text("Author: @${it.feedback.createdByUsername ?: row.authorUsername}")
                 Text("${friendlyAdminLabel(it.feedback.transportType?.name ?: row.transportType)} ${it.feedback.line ?: row.line}")
                 Text("Overall score: ${it.feedback.overallRating ?: it.feedback.score}")

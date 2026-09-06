@@ -24,7 +24,7 @@ class AchievementUiRulesTest {
 
     @Test fun achievementSummaryUsesAuthoritativeListSize() {
         val badges = (1..31).map { badge("A$it").copy(unlocked = it <= 4) }
-        assertEquals("Achievements 4 / 31", achievementSummary(badges))
+        assertEquals("4 of 31 unlocked", achievementSummary(badges))
     }
 
     private fun badge(code: String, pinned: Boolean = false, order: Int? = null) =
