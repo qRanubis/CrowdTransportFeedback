@@ -20,7 +20,11 @@ import java.util.Locale
 fun FeedbackListScreen(vm: FeedbackViewModel, currentUserId: String, currentUsername: String, onAddClick: () -> Unit, onMapClick: () -> Unit, onItemClick: (Long) -> Unit) {
     val list by vm.feedbackList.collectAsState(); val visible = list.filter { it.isVisibleTo(currentUserId) }
     Scaffold(
-        floatingActionButton = { ExtendedFloatingActionButton(onClick = onAddClick, text = { Text("＋ Add feedback") }) }
+        floatingActionButton = {
+            ExtendedFloatingActionButton(onClick = onAddClick) {
+                Text("＋ Add feedback")
+            }
+        }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
             Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
