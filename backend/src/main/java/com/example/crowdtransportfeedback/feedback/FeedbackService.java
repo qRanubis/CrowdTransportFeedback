@@ -34,7 +34,7 @@ public class FeedbackService {
 
     @Transactional(readOnly = true)
     public List<Response> all() {
-        return feedback.findAll().stream().map(this::out).toList();
+        return feedback.findAllWithOwner().stream().map(this::out).toList();
     }
 
     @Transactional(readOnly = true)

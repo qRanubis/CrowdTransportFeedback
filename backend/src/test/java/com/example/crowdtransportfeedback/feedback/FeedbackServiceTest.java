@@ -7,6 +7,7 @@ import com.example.crowdtransportfeedback.user.UserRepository;
 import com.example.crowdtransportfeedback.gamification.GamificationService;
 import com.example.crowdtransportfeedback.moderation.ReportLifecycle;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,6 +46,51 @@ class FeedbackServiceTest {
         assertEquals(3.7, created.overallRating(), 0.0001);
         assertEquals(3.7, created.score(), 0.0001);
         verify(repository).save(any());
+    }
+
+    @Test
+    void allUsesOwnerFetchQueryAndPreservesCompleteResponseContract() {
+        Feedback first = entity(owner);
+        UUID secondId = UUID.randomUUID();
+        UUID secondOwner = UUID.randomUUID();
+        Feedback second = entity(secondOwner);
+        second.feedbackId = secondId;
+        second.transportType = TransportType.TRAM;
+        second.line = "41";
+        second.score = 4.3;
+        second.punctualityScore = 4;
+        second.cleanlinessScore = 5;
+        second.crowdingScore = 4;
+        second.comment = "second";
+        second.latitude = 44.4268;
+        second.longitude = 26.1025;
+        second.createdAt = 200L;
+        when(repository.findAllWithOwner()).thenReturn(List.of(first, second));
+
+        var responses = service.all();
+
+        assertEquals(2, responses.size());
+        var response = responses.get(1);
+        assertEquals(secondId, response.feedbackId());
+        assertEquals(secondId.toString(), response.id());
+        assertEquals(secondOwner, response.createdByUserId());
+        assertEquals("owner1", response.createdByUsername());
+        assertEquals("NAVIGATOR", response.createdByAvatarKey());
+        assertEquals(TransportType.TRAM, response.transportType());
+        assertEquals("41", response.line());
+        assertEquals(4.3, response.score(), 0.0001);
+        assertEquals(4.3, response.overallRating(), 0.0001);
+        assertEquals(4, response.punctualityScore());
+        assertEquals(5, response.cleanlinessScore());
+        assertEquals(4, response.crowdingScore());
+        assertEquals("second", response.comment());
+        assertEquals(44.4268, response.latitude(), 0.0001);
+        assertEquals(26.1025, response.longitude(), 0.0001);
+        assertEquals(200L, response.createdAt());
+        assertEquals(0, response.xpAwarded());
+        assertEquals(List.of(), response.newAchievements());
+        verify(repository).findAllWithOwner();
+        verify(repository, never()).findAll();
     }
 
     @Test
