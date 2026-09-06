@@ -49,27 +49,17 @@ class FeedbackServiceTest {
     }
 
     @Test
-    void allUsesOwnerFetchQueryAndPreservesCompleteResponseContract() {
-        Feedback first = entity(owner);
+    void allUsesReadProjectionAndPreservesCompleteResponseContract() {
+        FeedbackReadRow first = readRow(id, owner);
         UUID secondId = UUID.randomUUID();
         UUID secondOwner = UUID.randomUUID();
-        Feedback second = entity(secondOwner);
-        second.feedbackId = secondId;
-        second.transportType = TransportType.TRAM;
-        second.line = "41";
-        second.score = 4.3;
-        second.punctualityScore = 4;
-        second.cleanlinessScore = 5;
-        second.crowdingScore = 4;
-        second.comment = "second";
-        second.latitude = 44.4268;
-        second.longitude = 26.1025;
-        second.createdAt = 200L;
-        when(repository.findAllWithOwner()).thenReturn(List.of(first, second));
+        FeedbackReadRow second = readRow(secondId, secondOwner);
+        when(repository.findAllReadRows()).thenReturn(List.of(first, second));
 
         var responses = service.all();
 
         assertEquals(2, responses.size());
+        assertEquals(id, responses.get(0).feedbackId());
         var response = responses.get(1);
         assertEquals(secondId, response.feedbackId());
         assertEquals(secondId.toString(), response.id());
@@ -89,7 +79,7 @@ class FeedbackServiceTest {
         assertEquals(200L, response.createdAt());
         assertEquals(0, response.xpAwarded());
         assertEquals(List.of(), response.newAchievements());
-        verify(repository).findAllWithOwner();
+        verify(repository).findAllReadRows();
         verify(repository, never()).findAll();
     }
 
@@ -187,6 +177,13 @@ class FeedbackServiceTest {
         feedback.longitude = 26.1;
         feedback.createdAt = 100L;
         return feedback;
+    }
+
+    private FeedbackReadRow readRow(UUID feedbackId, UUID userId) {
+        return new FeedbackReadRow(
+            feedbackId, userId, "owner1", "NAVIGATOR", TransportType.TRAM,
+            "41", 4.3, 4, 5, 4, "second", 44.4268, 26.1025, 200L
+        );
     }
 
     private AppUser proxyLikeUser(UUID userId, String username) {

@@ -34,7 +34,7 @@ public class FeedbackService {
 
     @Transactional(readOnly = true)
     public List<Response> all() {
-        return feedback.findAllWithOwner().stream().map(this::out).toList();
+        return feedback.findAllReadRows().stream().map(this::out).toList();
     }
 
     @Transactional(readOnly = true)
@@ -138,6 +138,28 @@ public class FeedbackService {
 
     private Response out(Feedback entity) {
         return out(entity,0,List.of());
+    }
+    private Response out(FeedbackReadRow row) {
+        return new Response(
+            row.feedbackId(),
+            row.feedbackId().toString(),
+            row.ownerId(),
+            row.ownerUsername(),
+            row.ownerAvatarKey(),
+            row.transportType(),
+            row.line(),
+            row.score(),
+            row.score(),
+            row.punctualityScore(),
+            row.cleanlinessScore(),
+            row.crowdingScore(),
+            row.comment(),
+            row.latitude(),
+            row.longitude(),
+            row.createdAt(),
+            0,
+            List.of()
+        );
     }
     private Response out(Feedback entity,int xpAwarded,List<String> newAchievements) {
         return new Response(
