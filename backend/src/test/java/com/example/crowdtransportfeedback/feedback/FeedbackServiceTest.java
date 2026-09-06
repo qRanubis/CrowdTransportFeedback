@@ -7,7 +7,6 @@ import com.example.crowdtransportfeedback.user.UserRepository;
 import com.example.crowdtransportfeedback.gamification.GamificationService;
 import com.example.crowdtransportfeedback.moderation.ReportLifecycle;
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,41 +45,6 @@ class FeedbackServiceTest {
         assertEquals(3.7, created.overallRating(), 0.0001);
         assertEquals(3.7, created.score(), 0.0001);
         verify(repository).save(any());
-    }
-
-    @Test
-    void allUsesReadProjectionAndPreservesCompleteResponseContract() {
-        FeedbackReadRow first = readRow(id, owner);
-        UUID secondId = UUID.randomUUID();
-        UUID secondOwner = UUID.randomUUID();
-        FeedbackReadRow second = readRow(secondId, secondOwner);
-        when(repository.findAllReadRows()).thenReturn(List.of(first, second));
-
-        var responses = service.all();
-
-        assertEquals(2, responses.size());
-        assertEquals(id, responses.get(0).feedbackId());
-        var response = responses.get(1);
-        assertEquals(secondId, response.feedbackId());
-        assertEquals(secondId.toString(), response.id());
-        assertEquals(secondOwner, response.createdByUserId());
-        assertEquals("owner1", response.createdByUsername());
-        assertEquals("NAVIGATOR", response.createdByAvatarKey());
-        assertEquals(TransportType.TRAM, response.transportType());
-        assertEquals("41", response.line());
-        assertEquals(4.3, response.score(), 0.0001);
-        assertEquals(4.3, response.overallRating(), 0.0001);
-        assertEquals(4, response.punctualityScore());
-        assertEquals(5, response.cleanlinessScore());
-        assertEquals(4, response.crowdingScore());
-        assertEquals("second", response.comment());
-        assertEquals(44.4268, response.latitude(), 0.0001);
-        assertEquals(26.1025, response.longitude(), 0.0001);
-        assertEquals(200L, response.createdAt());
-        assertEquals(0, response.xpAwarded());
-        assertEquals(List.of(), response.newAchievements());
-        verify(repository).findAllReadRows();
-        verify(repository, never()).findAll();
     }
 
     @Test
@@ -177,13 +141,6 @@ class FeedbackServiceTest {
         feedback.longitude = 26.1;
         feedback.createdAt = 100L;
         return feedback;
-    }
-
-    private FeedbackReadRow readRow(UUID feedbackId, UUID userId) {
-        return new FeedbackReadRow(
-            feedbackId, userId, "owner1", "NAVIGATOR", TransportType.TRAM,
-            "41", 4.3, 4, 5, 4, "second", 44.4268, 26.1025, 200L
-        );
     }
 
     private AppUser proxyLikeUser(UUID userId, String username) {

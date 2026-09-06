@@ -41,6 +41,10 @@ The sequential single-client benchmark uses the real Spring Boot HTTP stack and 
 
 Before timing each size, correctness gates require the overview and filtered summary counts to equal the exact seed size, a nonempty heatmap and resolvable area, and expected filtered admin records. A failed gate aborts rather than recording misleading latency. Deterministic SQL creates 100 valid evaluation contributors, cycles scores and recent timestamps, and distributes Bucharest coordinates across nearby grid cells.
 
+### M9B experimental conclusion
+
+The M9A baseline identified complete, unbounded feedback retrieval as the dominant scalability bottleneck. Two same-contract optimizations were then investigated with the identical 10,000-row benchmark: eager owner fetching and a direct scalar read projection. Neither produced a clear latency improvement—the average changed by only approximately 3–4% while p95 latency worsened—so neither experimental data-access strategy is retained in production. The measurement-driven recommendation is future pagination or otherwise bounded retrieval, which would require coordinated API and Android synchronization changes and is intentionally outside PR #9.
+
 ### Isolation and secrets safety
 
 The runner permits only `crowd_feedback_eval`, explicitly refuses `crowd_feedback`, starts (but does not replace) the Compose PostgreSQL service, creates the separate database, builds a temporary backend named `crowdtransportfeedback-m9-backend` on port 8081, and removes it in `finally`. Reset SQL independently checks the connected database before deleting only M9 evaluation identities. It never invokes `docker compose down -v`, drops a database, truncates development data, or writes credentials.
