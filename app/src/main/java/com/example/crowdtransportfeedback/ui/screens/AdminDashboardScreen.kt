@@ -16,13 +16,15 @@ import androidx.compose.ui.unit.dp
 import com.example.crowdtransportfeedback.admin.*
 import com.example.crowdtransportfeedback.domain.TransportType
 import kotlinx.coroutines.launch
+import com.example.crowdtransportfeedback.ui.components.StatCard
+import com.example.crowdtransportfeedback.ui.components.SectionCard
 
 @Composable
 fun AdminDashboardScreen(api: AdminApi, onFeedback: suspend (String) -> Boolean, onUser: (String) -> Unit) {
     val tabs = listOf("Overview", "Reports", "Feedback", "Users", "Reporting")
     var selected by remember { mutableIntStateOf(0) }
     Column(Modifier.fillMaxSize()) {
-        Text("Admin Dashboard", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(16.dp))
+        Text("Admin dashboard", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(16.dp))
         ScrollableTabRow(selectedTabIndex = selected) {
             tabs.forEachIndexed { index, title -> Tab(selected == index, { selected = index }, text = { Text(title) }) }
         }
@@ -59,18 +61,21 @@ private fun <T> OnlinePanel(key: Any? = Unit, load: suspend () -> T, content: @C
 private fun OverviewTab(api: AdminApi) = OnlinePanel(load = { api.overview() }) { overview, _ ->
     LazyColumn(Modifier.padding(16.dp)) {
         item {
-            Text("Users: ${overview.totalUsers}")
-            Text("Feedback: ${overview.totalFeedbacks}")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { StatCard("Users", "${overview.totalUsers}", Modifier.weight(1f)); StatCard("Feedback", "${overview.totalFeedbacks}", Modifier.weight(1f)) }
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { StatCard("Active contributors", "${overview.activeContributors30d}", Modifier.weight(1f)); StatCard("Pending reports", "${overview.pendingReports}", Modifier.weight(1f)) }
+            Spacer(Modifier.height(16.dp))
+            SectionCard {
             Text("Last 24h / 7d / 30d: ${overview.feedbackLast24h} / ${overview.feedbackLast7d} / ${overview.feedbackLast30d}")
-            Text("Active contributors (30d): ${overview.activeContributors30d}")
             Text("Pending reports: ${overview.pendingReports} across ${overview.reportedFeedbackAwaitingReview} feedbacks")
+            }
             Spacer(Modifier.height(12.dp))
             Text("Feedback by transport type", style = MaterialTheme.typography.titleMedium)
             if (overview.feedbackByTransportType.isEmpty()) Text("No feedback")
-            overview.feedbackByTransportType.toSortedMap().forEach { (type, count) -> Text("$type — $count") }
+            SectionCard { overview.feedbackByTransportType.toSortedMap().forEach { (type, count) -> Text("${type.lowercase().replace('_',' ').replaceFirstChar(Char::uppercase)} — $count") } }
             Spacer(Modifier.height(12.dp))
             Text("Top lines", style = MaterialTheme.typography.titleMedium)
-            overview.topLines.forEach { Text("${it.transportType} / ${it.line} — ${it.count}") }
+            SectionCard { overview.topLines.forEach { Text("${it.transportType.lowercase().replace('_',' ').replaceFirstChar(Char::uppercase)} ${it.line} — ${it.count}") } }
         }
     }
 }
@@ -96,19 +101,23 @@ private fun ModerationCard(api: AdminApi, row: QueueItem, reload: () -> Unit) {
     var detail by remember { mutableStateOf<ModerationDetail?>(null) }
     Card(Modifier.fillMaxWidth().padding(8.dp)) {
         Column(Modifier.padding(12.dp)) {
-            Text("${row.transportType} / ${row.line}", style = MaterialTheme.typography.titleMedium)
+            Text("${friendlyAdminLabel(row.transportType)} ${row.line}", style = MaterialTheme.typography.titleMedium)
             Text("@${row.authorUsername} · ${row.reportCount} pending reports")
-            Text(row.reasonCounts.entries.joinToString { "${it.key}: ${it.value}" })
+            Column(Modifier.fillMaxWidth()) {
+                row.reasonCounts.entries.forEach { (reason, count) ->
+                    SuggestionChip(onClick = {}, label = { Text("${friendlyAdminLabel(reason)} · $count") })
+                }
+            }
             TextButton({ scope.launch { detail = runCatching { api.detail(row.feedbackId) }.getOrNull() } }) { Text("Inspect reports") }
             detail?.let {
-                Divider()
+                HorizontalDivider()
                 Text("Author: @${it.feedback.createdByUsername ?: row.authorUsername}")
-                Text("${it.feedback.transportType?.name ?: row.transportType} / ${it.feedback.line ?: row.line}")
+                Text("${friendlyAdminLabel(it.feedback.transportType?.name ?: row.transportType)} ${it.feedback.line ?: row.line}")
                 Text("Overall score: ${it.feedback.overallRating ?: it.feedback.score}")
                 it.feedback.comment?.takeIf(String::isNotBlank)?.let { comment -> Text("Comment: $comment") }
                 Spacer(Modifier.height(8.dp))
                 it.reports.forEach { report ->
-                    Text("@${report.reporterUsername}: ${report.reason}")
+                    Text("@${report.reporterUsername}: ${friendlyAdminLabel(report.reason)}")
                     report.details?.takeIf(String::isNotBlank)?.let { details -> Text(details) }
                 }
             }
@@ -143,7 +152,7 @@ private fun FeedbackTab(api: AdminApi, onFeedback: suspend (String) -> Boolean) 
                 LazyColumn(Modifier.weight(1f)) {
                     items(result.content) { row ->
                         ListItem(
-                            headlineContent = { Text("${row.transportType} / ${row.line} · ${row.score}") },
+                            headlineContent = { Text("${friendlyAdminLabel(row.transportType)} ${row.line} · ${row.score}") },
                             supportingContent = { Text("@${row.username}${row.comment?.let { " — $it" }.orEmpty()}") },
                             modifier = Modifier.clickable { scope.launch { navigationError = !onFeedback(row.feedbackId) } }
                         )
@@ -223,14 +232,17 @@ private fun AdminFilters(state: AdminFilterState, showUsername: Boolean, onChang
 @Composable
 private fun ChoiceMenu(label: String, value: String?, options: List<String?>, enabled: Boolean = true, onSelect: (String?) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
-    val allLabel = if (label == "Line") "All lines" else "All $label"
+    val allLabel = if (label == "Line") "All lines" else "All ${label.lowercase()}"
     Box {
-        OutlinedButton({ expanded = true }, enabled = enabled) { Text(value ?: allLabel) }
+        OutlinedButton({ expanded = true }, enabled = enabled) { Text(value?.let(::friendlyAdminLabel) ?: allLabel) }
         DropdownMenu(expanded, { expanded = false }) {
-            options.forEach { option -> DropdownMenuItem({ Text(option ?: allLabel) }, { onSelect(option); expanded = false }) }
+            options.forEach { option -> DropdownMenuItem({ Text(option?.let(::friendlyAdminLabel) ?: allLabel) }, { onSelect(option); expanded = false }) }
         }
     }
 }
+
+internal fun friendlyAdminLabel(value: String): String =
+    value.lowercase().replace('_', ' ').replaceFirstChar(Char::uppercase)
 
 @Composable
 private fun Pager(page: Int, totalPages: Int, previous: () -> Unit, next: () -> Unit) {

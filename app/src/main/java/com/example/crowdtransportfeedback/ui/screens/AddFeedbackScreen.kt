@@ -8,6 +8,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -90,22 +92,12 @@ fun AddFeedbackScreen(vm: FeedbackViewModel, onSaved: () -> Unit, onCancel: () -
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)
     ) {
-        Text("Add feedback", style = MaterialTheme.typography.titleLarge)
-
-        Selector(
-            "Transport type",
-            state.transportType?.displayName ?: "Select transport type",
-            TransportType.entries.map { it.displayName }
-        ) { label ->
-            vm.setTransportType(TransportType.entries.first { it.displayName == label })
+        Text("Add feedback", style = MaterialTheme.typography.headlineMedium)
+        Spacer(Modifier.height(16.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+          Selector(state.transportType?.displayName ?: "Select transport", TransportType.entries.map { it.displayName }, Modifier.weight(.45f)) { label -> vm.setTransportType(TransportType.entries.first { it.displayName == label }) }
+          SearchableLineSelector(state, state.transportType?.let(BucharestTransitCatalog::linesFor).orEmpty(), vm::setLine, Modifier.weight(.55f))
         }
-
-        val type = state.transportType
-        SearchableLineSelector(
-            state = state,
-            choices = type?.let(BucharestTransitCatalog::linesFor).orEmpty(),
-            onSelect = vm::setLine
-        )
 
         RatingSelector(
             "Punctuality",
@@ -129,13 +121,12 @@ fun AddFeedbackScreen(vm: FeedbackViewModel, onSaved: () -> Unit, onCancel: () -
             vm::setCrowding
         )
 
-        Spacer(Modifier.height(12.dp))
-        Text("Overall rating", style = MaterialTheme.typography.labelLarge)
+        Spacer(Modifier.height(12.dp)); Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) { Text("Overall rating", style = MaterialTheme.typography.labelLarge)
         Text(
             state.overallRating?.let { String.format(Locale.US, "%.1f / 5", it) }
                 ?: "Select the three ratings above",
-            style = MaterialTheme.typography.titleMedium
-        )
+            style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary
+        ) } }
         Text(
             "Calculated automatically from punctuality, cleanliness and crowding comfort.",
             style = MaterialTheme.typography.bodySmall
@@ -149,18 +140,19 @@ fun AddFeedbackScreen(vm: FeedbackViewModel, onSaved: () -> Unit, onCancel: () -
         )
 
         Spacer(Modifier.height(12.dp))
-        Text("Location", style = MaterialTheme.typography.labelLarge)
-        Text(locationMessage(state.locationState))
+        Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) { Text("Location", style = MaterialTheme.typography.titleMedium)
+        Text(locationMessage(state.locationState), color = MaterialTheme.colorScheme.onSurfaceVariant)
         OutlinedButton(
             onClick = { if (hasPermission()) fetch() else requestPermission() },
             enabled = !state.isSubmitting && state.locationState !is LocationState.Loading
         ) {
             Text(if (hasPermission()) "Retry location" else "Allow location")
-        }
+        } } }
 
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 
-        Row {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = ::cancelAndNavigateBack, enabled = !state.isSubmitting, modifier = Modifier.weight(1f).heightIn(min=48.dp)) { Text("Cancel") }
             Button(
                 onClick = {
                     vm.submit {
@@ -170,13 +162,9 @@ fun AddFeedbackScreen(vm: FeedbackViewModel, onSaved: () -> Unit, onCancel: () -
                         }
                     }
                 },
-                enabled = state.isValid && !state.isSubmitting
+                enabled = state.isValid && !state.isSubmitting, modifier = Modifier.weight(1f).heightIn(min=48.dp)
             ) {
-                Text(if (state.isSubmitting) "Saving..." else "Save")
-            }
-            Spacer(Modifier.width(12.dp))
-            OutlinedButton(onClick = ::cancelAndNavigateBack, enabled = !state.isSubmitting) {
-                Text("Cancel")
+                Text(if (state.isSubmitting) "Saving…" else "Save feedback")
             }
         }
 
@@ -210,24 +198,17 @@ fun RatingSelector(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun Selector(
-    label: String,
     value: String,
     choices: List<String>,
+    modifier: Modifier = Modifier,
     onSelect: (String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
-    Spacer(Modifier.height(12.dp))
-    Text(label, style = MaterialTheme.typography.labelLarge)
-    Box {
-        OutlinedButton({ expanded = true }, Modifier.fillMaxWidth()) { Text(value) }
-        DropdownMenu(expanded, { expanded = false }) {
-            choices.forEach { choice ->
-                DropdownMenuItem({ Text(choice) }, { onSelect(choice); expanded = false })
-            }
-        }
-    }
+    OutlinedButton({ expanded = true }, modifier.heightIn(min=56.dp)) { Text(value) }
+    if (expanded) ModalBottomSheet(onDismissRequest = { expanded = false }) { Column(Modifier.padding(16.dp), verticalArrangement=Arrangement.spacedBy(4.dp)) { Text("Choose transport type", style=MaterialTheme.typography.titleLarge); choices.forEach { choice -> TextButton({onSelect(choice);expanded=false}, Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text(choice, Modifier.fillMaxWidth()) } }; Spacer(Modifier.height(24.dp)) } }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -235,46 +216,24 @@ private fun Selector(
 private fun SearchableLineSelector(
     state: FeedbackFormState,
     choices: List<String>,
-    onSelect: (String) -> Unit
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
     var query by remember(state.transportType) { mutableStateOf("") }
 
-    Spacer(Modifier.height(12.dp))
-    Text("Line", style = MaterialTheme.typography.labelLarge)
-
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = {
-            if (state.transportType != null && !state.isSubmitting) {
-                expanded = !expanded
-            }
-        }
-    ) {
-        OutlinedTextField(
-            value = state.line ?: "",
-            onValueChange = {},
-            readOnly = true,
-            placeholder = { Text("Select line") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier.menuAnchor().fillMaxWidth(),
-            enabled = state.transportType != null && !state.isSubmitting
-        )
-
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            modifier = Modifier.heightIn(max = 360.dp)
-        ) {
+    OutlinedButton({ expanded = true }, enabled = state.transportType != null && !state.isSubmitting, modifier=modifier.heightIn(min=56.dp)) { Text(state.line ?: "Select line") }
+    if (expanded) ModalBottomSheet(onDismissRequest = { expanded = false }) {
+        Column(Modifier.fillMaxWidth().heightIn(max=560.dp).padding(horizontal=16.dp)) {
+            Text("Choose line", style=MaterialTheme.typography.titleLarge)
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
-                label = { Text("Filter lines") },
+                placeholder = { Text("Search lines…") },
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
             )
-
-            filterLines(choices, query).forEach { line ->
+            LazyColumn(Modifier.weight(1f)) { items(filterLines(choices, query)) { line ->
                 DropdownMenuItem(
                     text = { Text(line) },
                     onClick = {
@@ -283,7 +242,7 @@ private fun SearchableLineSelector(
                         expanded = false
                     }
                 )
-            }
+            } }
         }
     }
 }

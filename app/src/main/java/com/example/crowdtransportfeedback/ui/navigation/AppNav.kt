@@ -72,6 +72,10 @@ private fun AuthenticatedNav(
     val backStackEntry by navController.currentBackStackEntryAsState()
     val isFeedbackList = backStackEntry?.destination?.route.let { it == null || it == Routes.LIST }
     val currentRoute = backStackEntry?.destination?.route
+    val isNested = currentRoute?.substringBefore("/") in setOf(Routes.DETAIL, Routes.ACHIEVEMENTS, Routes.LEADERBOARD, Routes.PUBLIC_PROFILE)
+    val isForm = currentRoute == Routes.ADD
+    val isLevelOne = currentRoute in setOf(Routes.PROFILE, Routes.MAP, Routes.ADMIN)
+    fun home() { navController.navigate(Routes.LIST) { popUpTo(Routes.LIST) { inclusive = false }; launchSingleTop = true } }
     var avatarKey by remember(user.id) { mutableStateOf("COMMUTER") }
     LaunchedEffect(user.id) {
         runCatching { profileApi.me() }.onSuccess { avatarKey = it.avatarKey }
@@ -83,8 +87,11 @@ private fun AuthenticatedNav(
             role = user.role.name,
             session = sessionManager,
             onProfile = { navController.navigate(Routes.PROFILE) { launchSingleTop = true } },
-            showBack = !isFeedbackList,
+            showBack = isNested || isForm,
             onBack = { navController.popBackStack() },
+            showHome = isNested || isLevelOne,
+            onHome = ::home,
+            showLogout = isFeedbackList || currentRoute == Routes.PROFILE,
             avatarKey = avatarKey,
             onAdmin = if (shouldShowAdminEntry(user.role, currentRoute)) ({ navController.navigate(Routes.ADMIN) { launchSingleTop = true } }) else null
         )

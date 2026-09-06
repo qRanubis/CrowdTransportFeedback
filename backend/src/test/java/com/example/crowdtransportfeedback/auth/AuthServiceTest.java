@@ -70,6 +70,12 @@ class AuthServiceTest {
         assertFalse(validator.validate(
             new AuthDtos.RegisterRequest("user@example.12", "user123", "Password123!")
         ).isEmpty());
+        assertFalse(validator.validate(
+            new AuthDtos.RegisterRequest("ab@example.com", "user123", "Password123!")
+        ).isEmpty());
+        assertFalse(validator.validate(
+            new AuthDtos.RegisterRequest("abc@xy.com", "user123", "Password123!")
+        ).isEmpty());
 
         assertTrue(validator.validate(
             new AuthDtos.Credentials("user@test.local", "legacy-password")

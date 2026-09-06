@@ -30,6 +30,13 @@ class SessionAndNetworkingTest {
         assertFalse(isValidRegistrationEmail("user@example.info"))
         assertFalse(isValidRegistrationEmail("user@example.12"))
         assertTrue(isValidLoginEmail("user@test.local"))
+        assertFalse(isValidRegistrationEmail("ab@example.com"))
+        assertFalse(isValidRegistrationEmail("abc@xy.com"))
+        assertTrue(isValidRegistrationEmail("abc@gmail.com"))
+        assertTrue(isValidRegistrationEmail("rare@test.ro"))
+        assertFalse(isValidLoginEmail("ab@test.local"))
+        assertFalse(isValidLoginEmail("abc@xy.local"))
+        assertEquals("abc@gmail.com", normalizeEmail(" ABC@GMAIL.COM "))
 
         assertTrue(isValidUsername("user123"))
         assertFalse(isValidUsername("User_123"))

@@ -8,9 +8,9 @@ import java.util.UUID;
 
 public final class AuthDtos {
     private static final String LOGIN_EMAIL_PATTERN =
-        "^\\s*[^\\s@]+@[^\\s@]+\\.[^\\s@]+\\s*$";
+        "^\\s*[^\\s@]{3,}@[^\\s@.]{3,}\\.[A-Za-z]{2,}\\s*$";
     private static final String REGISTRATION_EMAIL_PATTERN =
-        "^\\s*[^\\s@]+@[^\\s@]+\\.[A-Za-z]{2,3}\\s*$";
+        "^\\s*[^\\s@]{3,}@[^\\s@.]{3,}\\.[A-Za-z]{2,3}\\s*$";
     private static final String USERNAME_PATTERN = "^[a-z0-9]{3,20}$";
     private static final String PASSWORD_PATTERN =
         "^(?=.{8,128}$)(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9\\s]).*$";

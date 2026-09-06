@@ -31,8 +31,8 @@ sealed interface SessionState {
     data class Authenticated(val user: AuthUser, val offline: Boolean = false) : SessionState
 }
 
-private val loginEmailRegex = Regex("""^[^\s@]+@[^\s@]+\.[^\s@]+$""")
-private val registrationEmailRegex = Regex("""^[^\s@]+@[^\s@]+\.[a-z]{2,3}$""")
+private val loginEmailRegex = Regex("""^[^\s@]{3,}@[^\s@.]{3,}\.[a-z]{2,}$""")
+private val registrationEmailRegex = Regex("""^[^\s@]{3,}@[^\s@.]{3,}\.[a-z]{2,3}$""")
 private val usernameRegex = Regex("""^[a-z0-9]{3,20}$""")
 
 fun normalizeEmail(value: String): String = value.trim().lowercase()
