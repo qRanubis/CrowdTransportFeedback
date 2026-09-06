@@ -16,13 +16,15 @@ import androidx.compose.ui.unit.dp
 import com.example.crowdtransportfeedback.admin.*
 import com.example.crowdtransportfeedback.domain.TransportType
 import kotlinx.coroutines.launch
+import com.example.crowdtransportfeedback.ui.components.StatCard
+import com.example.crowdtransportfeedback.ui.components.SectionCard
 
 @Composable
 fun AdminDashboardScreen(api: AdminApi, onFeedback: suspend (String) -> Boolean, onUser: (String) -> Unit) {
     val tabs = listOf("Overview", "Reports", "Feedback", "Users", "Reporting")
     var selected by remember { mutableIntStateOf(0) }
     Column(Modifier.fillMaxSize()) {
-        Text("Admin Dashboard", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(16.dp))
+        Text("Admin dashboard", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(16.dp))
         ScrollableTabRow(selectedTabIndex = selected) {
             tabs.forEachIndexed { index, title -> Tab(selected == index, { selected = index }, text = { Text(title) }) }
         }
@@ -59,18 +61,21 @@ private fun <T> OnlinePanel(key: Any? = Unit, load: suspend () -> T, content: @C
 private fun OverviewTab(api: AdminApi) = OnlinePanel(load = { api.overview() }) { overview, _ ->
     LazyColumn(Modifier.padding(16.dp)) {
         item {
-            Text("Users: ${overview.totalUsers}")
-            Text("Feedback: ${overview.totalFeedbacks}")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { StatCard("Users", "${overview.totalUsers}", Modifier.weight(1f)); StatCard("Feedback", "${overview.totalFeedbacks}", Modifier.weight(1f)) }
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { StatCard("Active contributors", "${overview.activeContributors30d}", Modifier.weight(1f)); StatCard("Pending reports", "${overview.pendingReports}", Modifier.weight(1f)) }
+            Spacer(Modifier.height(16.dp))
+            SectionCard {
             Text("Last 24h / 7d / 30d: ${overview.feedbackLast24h} / ${overview.feedbackLast7d} / ${overview.feedbackLast30d}")
-            Text("Active contributors (30d): ${overview.activeContributors30d}")
             Text("Pending reports: ${overview.pendingReports} across ${overview.reportedFeedbackAwaitingReview} feedbacks")
+            }
             Spacer(Modifier.height(12.dp))
             Text("Feedback by transport type", style = MaterialTheme.typography.titleMedium)
             if (overview.feedbackByTransportType.isEmpty()) Text("No feedback")
-            overview.feedbackByTransportType.toSortedMap().forEach { (type, count) -> Text("$type — $count") }
+            SectionCard { overview.feedbackByTransportType.toSortedMap().forEach { (type, count) -> Text("${type.lowercase().replace('_',' ').replaceFirstChar(Char::uppercase)} — $count") } }
             Spacer(Modifier.height(12.dp))
             Text("Top lines", style = MaterialTheme.typography.titleMedium)
-            overview.topLines.forEach { Text("${it.transportType} / ${it.line} — ${it.count}") }
+            SectionCard { overview.topLines.forEach { Text("${it.transportType.lowercase().replace('_',' ').replaceFirstChar(Char::uppercase)} ${it.line} — ${it.count}") } }
         }
     }
 }

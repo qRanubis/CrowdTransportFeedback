@@ -17,6 +17,8 @@ import com.example.crowdtransportfeedback.admin.canReportFeedback
 import com.example.crowdtransportfeedback.admin.reportValidationError
 import com.example.crowdtransportfeedback.admin.reportStatusLabel
 import java.util.Locale
+import com.example.crowdtransportfeedback.ui.components.SectionCard
+import com.example.crowdtransportfeedback.ui.components.StatusChip
 
 @Composable
 fun FeedbackDetailScreen(
@@ -38,33 +40,20 @@ fun FeedbackDetailScreen(
     val scope = rememberCoroutineScope()
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Button(onClick = onBack, enabled = !isDeleting) { Text("Back") }
-        Spacer(modifier = Modifier.height(12.dp))
-
         val current = item
         if (current == null || !current.isVisibleTo(currentUserId)) {
             Text("Feedback not available")
         } else {
-            Text("Detail", style = MaterialTheme.typography.titleLarge)
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(String.format(Locale.US, "Overall rating: %.1f/5", current.overallRating()))
-            Text("Transport type: ${current.transportType?.displayName ?: "Not available"}")
-            Text("Line: ${current.line ?: "Not available"}")
-            Text("Crowding comfort: ${current.crowdingScore?.let { "$it/5" } ?: "Not available"}")
-            Text("Cleanliness: ${current.cleanlinessScore?.let { "$it/5" } ?: "Not available"}")
-            Text("Punctuality: ${current.punctualityScore?.let { "$it/5" } ?: "Not available"}")
+            Text("Feedback detail", style = MaterialTheme.typography.headlineMedium)
+            Spacer(modifier = Modifier.height(12.dp))
+            SectionCard { Row { Text("${current.transportType?.displayName ?: "Transport"} ${current.line ?: ""}", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f)); Text(String.format(Locale.US, "★ %.1f", current.overallRating()), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary) }; StatusChip(current.syncState, current.rejectionReason) }
+            Spacer(Modifier.height(12.dp))
+            SectionCard { Text("Trip ratings", style = MaterialTheme.typography.titleMedium); Text("Punctuality                                      ${current.punctualityScore ?: "—"}/5"); HorizontalDivider(); Text("Cleanliness                                      ${current.cleanlinessScore ?: "—"}/5"); HorizontalDivider(); Text("Crowding comfort                         ${current.crowdingScore ?: "—"}/5") }
 
             val author = current.createdByUsername?.takeIf { it.isNotBlank() }
                 ?: if (current.createdByUserId == currentUserId) currentUsername.takeIf { it.isNotBlank() } else null
-            Text("${avatarSymbol(current.createdByAvatarKey ?: "COMMUTER")} Author: ${author?.let { "@$it  ›" } ?: "Not available"}", Modifier.clickable(enabled=author!=null){author?.let(onAuthor)})
-            Text("Comment: ${current.comment.ifBlank { "Not available" }}")
-            Text("Latitude / longitude: ${current.latitude ?: "Not available"} / ${current.longitude ?: "Not available"}")
-            val syncLabel = if (current.syncState == SyncState.REJECTED) {
-                "Rejected · ${rejectionReasonLabel(current.rejectionReason)}"
-            } else current.syncState.displayName
-            Text("Sync status: $syncLabel")
-            Text("Local id: ${current.localId}")
+            Spacer(Modifier.height(12.dp)); SectionCard(Modifier.clickable(enabled=author!=null){author?.let(onAuthor)}) { Text("Author", style = MaterialTheme.typography.labelMedium); Text("${avatarSymbol(current.createdByAvatarKey ?: "COMMUTER")} ${author?.let { "@$it  ›" } ?: "Not available"}", style = MaterialTheme.typography.titleMedium) }
+            Spacer(Modifier.height(12.dp)); SectionCard { Text("Comment", style = MaterialTheme.typography.titleMedium); Text(current.comment.ifBlank { "No comment provided." }); if (current.latitude != null && current.longitude != null) Text(String.format(Locale.US, "Location · %.4f, %.4f", current.latitude, current.longitude), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
 
             val canReport = canReportFeedback(currentUserRole, currentUserId, current.createdByUserId, current.syncState == SyncState.SYNCED)
             LaunchedEffect(current.feedbackId, canReport) {
@@ -81,7 +70,7 @@ fun FeedbackDetailScreen(
             if (canDelete) {
                 Spacer(modifier = Modifier.height(12.dp))
                 deleteError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                Button(
+                Button(colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     enabled = !isDeleting,
                     onClick = {
                         if (!isDeleting) {

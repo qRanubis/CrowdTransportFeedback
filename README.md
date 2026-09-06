@@ -185,3 +185,15 @@ Migration `V6__moderation_and_admin.sql` adds durable `feedback_report` and `adm
 ## Milestone 9A — experimental evaluation baseline
 
 The reproducible Trust experiments, isolated PostgreSQL HTTP performance benchmark, and controlled Android eventual-consistency evaluation are documented in [`evaluation/README.md`](evaluation/README.md). M9A records baselines without production performance optimization; generated, environment-dependent result files remain local for a later same-procedure M9B comparison.
+## Milestone 10 — UI/UX polish and presentation readiness
+
+Milestone 10 gives the Android client a cohesive, static Material 3 visual identity with
+consistent typography, spacing, cards, navigation, and loading/error/empty states. Login
+and registration now provide field-level validation, safe authentication errors, password
+visibility controls, and clean mode switching. Feedback, profile, achievements,
+leaderboard, add-feedback, map/heatmap, detail, and administration experiences have been
+modernized for real use, compact screens, and presentation screenshots without changing
+the established M1–M9 architecture or product rules.
+
+This milestone intentionally adds no guest mode or offline analytics/heatmap cache; those
+remain future work.

@@ -1,177 +1,106 @@
 package com.example.crowdtransportfeedback.ui.screens
 
-import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusManager
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import com.example.crowdtransportfeedback.auth.AuthRepository
-import com.example.crowdtransportfeedback.auth.SessionManager
-import com.example.crowdtransportfeedback.auth.isValidLoginEmail
-import com.example.crowdtransportfeedback.auth.isValidRegistrationEmail
-import com.example.crowdtransportfeedback.auth.isValidUsername
-import com.example.crowdtransportfeedback.auth.registrationPasswordError
+import com.example.crowdtransportfeedback.auth.*
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
+import java.io.IOException
 
 @Composable
 fun AuthScreen(repository: AuthRepository, session: SessionManager) {
     var register by remember { mutableStateOf(false) }
-    var email by remember { mutableStateOf("") }
-    var username by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var confirm by remember { mutableStateOf("") }
-    var loading by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
+    var email by remember { mutableStateOf("") }; var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }; var confirm by remember { mutableStateOf("") }
+    var emailError by remember { mutableStateOf<String?>(null) }; var passwordError by remember { mutableStateOf<String?>(null) }
+    var usernameError by remember { mutableStateOf<String?>(null) }; var confirmError by remember { mutableStateOf<String?>(null) }
+    var serverError by remember { mutableStateOf<String?>(null) }; var loading by remember { mutableStateOf(false) }
+    var passwordVisible by remember { mutableStateOf(false) }; var confirmVisible by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope(); val focus = LocalFocusManager.current
 
-    Column(
-        Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(
-            if (register) "Create account" else "Login",
-            style = MaterialTheme.typography.headlineMedium
-        )
-        Spacer(Modifier.height(16.dp))
+    fun resetAndSwitch() {
+        email = ""; username = ""; password = ""; confirm = ""
+        emailError = null; usernameError = null; passwordError = null; confirmError = null; serverError = null
+        passwordVisible = false; confirmVisible = false; focus.clearFocus(force = true); register = !register
+    }
 
-        OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text("Email") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !loading
-        )
-
-        if (register) {
-            OutlinedTextField(
-                value = username,
-                onValueChange = { username = it },
-                label = { Text("Username") },
-                supportingText = { Text("3-20 lowercase letters and digits") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !loading
-            )
-        }
-
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Password") },
-            visualTransformation = PasswordVisualTransformation(),
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !loading
-        )
-
-        if (register) {
-            Text(
-                "Minimum 8 characters, with uppercase, lowercase, digit and symbol.",
-                style = MaterialTheme.typography.bodySmall
-            )
-            OutlinedTextField(
-                value = confirm,
-                onValueChange = { confirm = it },
-                label = { Text("Confirm password") },
-                visualTransformation = PasswordVisualTransformation(),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !loading
-            )
-        }
-
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-
-        Button(
-            onClick = {
-                error = when {
-                    register && !isValidRegistrationEmail(email) ->
-                        "Email must end in a 2-3 letter domain such as .ro, .it or .com."
-                    !register && !isValidLoginEmail(email) -> "Enter a valid email address."
-                    register && !isValidUsername(username) ->
-                        "Username must be 3-20 characters using only lowercase letters and digits."
-                    password.isBlank() -> "Enter your password."
-                    register && registrationPasswordError(password) != null ->
-                        registrationPasswordError(password)
-                    register && password != confirm -> "Passwords do not match."
-                    else -> null
+    Box(Modifier.fillMaxSize().imePadding().padding(16.dp), contentAlignment = Alignment.Center) {
+        Card(Modifier.fillMaxWidth().widthIn(max = 480.dp), elevation = CardDefaults.cardElevation(4.dp)) {
+            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(if (register) "Create account" else "Welcome back", style = MaterialTheme.typography.headlineMedium)
+                Text(if (register) "Join the community and improve every trip." else "Sign in to share transport feedback.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(email, { email = it; emailError = null }, Modifier.fillMaxWidth(), label = { Text("Email") }, singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email), isError = emailError != null,
+                    supportingText = emailError?.let { value -> {{ Text(value) }} }, enabled = !loading)
+                if (register) OutlinedTextField(username, { username = it; usernameError = null }, Modifier.fillMaxWidth(), label = { Text("Username") }, singleLine = true,
+                    isError = usernameError != null, supportingText = { Text(usernameError ?: "3–20 lowercase letters and digits") }, enabled = !loading)
+                PasswordField("Password", password, { password = it; passwordError = null }, passwordVisible, { passwordVisible = !passwordVisible }, passwordError, loading)
+                if (register) {
+                    Text("At least 8 characters with uppercase, lowercase, digit and symbol.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    PasswordField("Confirm password", confirm, { confirm = it; confirmError = null }, confirmVisible, { confirmVisible = !confirmVisible }, confirmError, loading)
                 }
-
-                if (error == null) {
-                    loading = true
-                    scope.launch {
-                        runCatching {
-                            if (register) {
-                                repository.register(email, username, password)
-                            } else {
-                                repository.login(email, password)
-                            }
-                        }.onSuccess {
-                            session.authenticated(it)
-                        }.onFailure {
-                            error = "Authentication failed. Check your details and connection."
+                serverError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
+                Button(onClick = {
+                    focus.clearFocus(); serverError = null
+                    emailError = if (!(if (register) isValidRegistrationEmail(email) else isValidLoginEmail(email))) "Enter a valid email address." else null
+                    usernameError = if (register && !isValidUsername(username)) "Username must be 3–20 characters using only lowercase letters and digits." else null
+                    passwordError = when { password.isBlank() -> "Enter your password."; register -> registrationPasswordError(password); else -> null }
+                    confirmError = if (register && password != confirm) "Passwords do not match." else null
+                    if (emailError == null && usernameError == null && passwordError == null && confirmError == null) {
+                        loading = true; scope.launch {
+                            runCatching { if (register) repository.register(email, username, password) else repository.login(email, password) }
+                                .onSuccess { session.authenticated(it) }
+                                .onFailure { serverError = authenticationError(it, register) }
+                            loading = false
                         }
-                        loading = false
                     }
+                }, enabled = !loading, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                    if (loading) { CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp); Spacer(Modifier.width(8.dp)) }
+                    Text(if (loading) "Please wait…" else if (register) "Create account" else "Login")
                 }
-            },
-            enabled = !loading,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                if (loading) "Please wait…"
-                else if (register) "Create account"
-                else "Login"
-            )
-        }
-
-        TextButton(
-            onClick = {
-                register = !register
-                error = null
-                password = ""
-                confirm = ""
-            },
-            enabled = !loading
-        ) {
-            Text(if (register) "Back to Login" else "Register")
+                TextButton(onClick = ::resetAndSwitch, enabled = !loading, modifier = Modifier.align(Alignment.CenterHorizontally).heightIn(min = 48.dp)) {
+                    Text(if (register) "Back to login" else "Create an account")
+                }
+            }
         }
     }
 }
 
+@Composable private fun PasswordField(label: String, value: String, change: (String) -> Unit, visible: Boolean, toggle: () -> Unit, error: String?, loading: Boolean) =
+    OutlinedTextField(value, change, Modifier.fillMaxWidth(), label = { Text(label) }, singleLine = true, enabled = !loading,
+        visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), isError = error != null,
+        supportingText = error?.let { value -> {{ Text(value) }} }, trailingIcon = { TextButton(onClick = toggle) { Text(if (visible) "Hide" else "Show") } })
+
+internal fun authenticationError(error: Throwable, registering: Boolean): String = when {
+    error is IOException -> "Unable to connect. Check your internet connection and try again."
+    error is HttpException && error.code() in listOf(400, 401, 403) && !registering -> "Incorrect email or password."
+    else -> if (registering) "Registration failed. Please try again." else "Authentication failed. Please try again."
+}
+
 @Composable
-fun AccountBar(
-    username: String,
-    email: String,
-    role: String,
-    session: SessionManager,
-    onProfile: () -> Unit = {},
-    showBack: Boolean = false,
-    onBack: () -> Unit = {},
-    avatarKey: String = "COMMUTER",
-    onAdmin: (() -> Unit)? = null
-) {
+fun AccountBar(username: String, email: String, role: String, session: SessionManager, onProfile: () -> Unit = {}, showBack: Boolean = false,
+    onBack: () -> Unit = {}, avatarKey: String = "COMMUTER", onAdmin: (() -> Unit)? = null,
+    showHome: Boolean = false, onHome: () -> Unit = {}, showLogout: Boolean = true) {
     val scope = rememberCoroutineScope()
-
-    Row(
-        Modifier.fillMaxWidth().padding(8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        if (showBack) {
-            TextButton(onClick = onBack) { Text("← Back") }
-        } else {
-            Column(Modifier.clickable(onClick = onProfile)) {
-                Text("${avatarSymbol(avatarKey)} ${if (username.isBlank()) email else "@$username"}")
-                if (username.isNotBlank()) {
-                    Text(email, style = MaterialTheme.typography.labelSmall)
-                }
-                Text(role, style = MaterialTheme.typography.labelSmall)
-            }
+    Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 2.dp) {
+        Row(Modifier.fillMaxWidth().statusBarsPadding().heightIn(min = 64.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            if (showBack) TextButton(onClick = onBack) { Text("‹ Back") }
+            else if (!showHome) Row(Modifier.clickable(onClick = onProfile).padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(avatarSymbol(avatarKey), style = MaterialTheme.typography.titleLarge); Spacer(Modifier.width(8.dp)); Text("@$username", style = MaterialTheme.typography.titleMedium)
+            } else TextButton(onClick = onHome) { Text("⌂ Home") }
+            Row { if (showBack && showHome) TextButton(onClick = onHome) { Text("⌂ Home") }; onAdmin?.let { TextButton(onClick = it) { Text("Admin") } }; if (showLogout) TextButton(onClick = { scope.launch { session.logout() } }) { Text("Logout") } }
         }
-
-        Row { onAdmin?.let { TextButton(onClick=it){Text("Admin")} }; TextButton(onClick = { scope.launch { session.logout() } }) { Text("Logout") } }
     }
 }
